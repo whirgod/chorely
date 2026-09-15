@@ -1,22 +1,33 @@
 # Chorely
 
-An Android app for staying on top of regular home cleaning tasks.
+An Android app for staying on top of regular home cleaning chores.
 
-Set a repeating schedule for each chore — vacuum the living room every 7 days,
-descale the kettle every 3 months — and Chorely reminds you when each one is
-next due.
+Give each chore a repeating schedule — vacuum every Saturday, descale the
+kettle every 3 months — and Chorely works out what is due and reminds you.
 
 ## Status
 
-Early development. Nothing implemented yet.
+Early development. Nothing implemented yet. The domain model is settled; see
+[CONTEXT.md](CONTEXT.md).
 
 ## Planned features
 
-- Define cleaning tasks with a repeat interval (daily / weekly / monthly / custom)
-- Automatic local notifications when a task becomes due
-- Mark a task done to reschedule it from the completion date
-- Overview of what is due today, overdue, and coming up
+- Chores that repeat either on set weekdays ("every Saturday") or after an
+  elapsed period since you last did them ("every 3 months")
+- One daily notification listing what is due, at a time you choose — silent on
+  days with nothing due
+- Mark a chore done, early or late, or skip an occurrence you decided to pass on
+- Overview of what is due today, what is overdue, and what is coming up
+- A history of every time you did each chore
+- Archive chores you no longer want without losing their history
 - Works fully offline; no account required
+
+## Later
+
+- Export and import your data to a file
+- Tags for grouping chores
+- Monthly and day-of-month schedules ("the 1st", "first Saturday")
+- Pausing a chore while you are away
 
 ## Tech stack (planned)
 

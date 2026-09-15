@@ -33,14 +33,22 @@ Never invoke `gradle` directly — only `./gradlew`, so the pinned wrapper versi
 
 These span multiple files and are easy to get wrong from any single one:
 
-- The next due date is computed from the **completion** timestamp, not from the previous due date — completing a chore late shifts the whole future series forward; there is no catch-up backlog.
-- A chore is "overdue", not "missed": due dates never expire, and no chore occurrence is ever silently dropped.
+- A recurrence is **calendar-anchored** (external rhythm: "every Tuesday" — a late completion must not move the next due date) or **completion-anchored** (internal clock: "every 3 months" — the next due date is computed from the completion timestamp, so late completion shifts the whole series); see [CONTEXT.md](CONTEXT.md) before touching due-date logic.
+- Every chore has exactly one **outstanding** occurrence at a time, including completion-anchored ones, so "what is outstanding now" is a single query rather than a union over the two kinds.
+- Only calendar-anchored occurrences auto-skip, and only once the next one falls due; a completion-anchored occurrence stays outstanding indefinitely, because nothing arrives to displace it.
+- Never auto-skip an occurrence the user has not yet been notified about — otherwise a daily chore's occurrence can appear and vanish unseen, recorded as a lapse the user never had a chance to act on.
+- Occurrences may be completed **before** their due date; do not assert completion timestamps fall after due dates.
+- The outstanding occurrence is **derived** from the recurrence plus the newest stored resolution, never stored — so a device that has been off for a month shows correct state the moment it opens, with no background job involved.
+- Resolved occurrences are **stored**, auto-skips included: any code path that touches a chore first runs catch-up, writing rows for occurrences the rule says have since been displaced, and only then reads. Catch-up is idempotent.
+- Editing a recurrence recomputes the outstanding occurrence's due date, but an occurrence that was already overdue must stay flagged as such — a rule change must never make a neglected chore look clean.
 - Room is the single source of truth for schedules; anything scheduled with AlarmManager/WorkManager is a derived cache that must be rebuildable from the database alone.
 
 ## Never do
 
 - No network, account, analytics, or cloud-sync dependency — the app must work fully offline, and adding an internet permission is a product change, not an implementation detail.
-- Do not store due dates as pre-expanded rows for every future occurrence; store the rule plus the last completion.
+- Android auto-backup is deliberately left **enabled** and is the one sanctioned exception to the no-cloud rule: it is the OS's own mechanism, the app never knows about it, and with no export feature it is all that survives a lost phone — do not "fix" it.
+- Do not pre-expand rows for future occurrences; store the recurrence rule plus the history of resolved ones.
+- Never delete or overwrite a resolved occurrence — the completion history is append-only, and archiving a chore must retain it.
 
 ## Reminder scheduling gotchas
 
@@ -56,7 +64,8 @@ The reminder path is where sessions get lost. Facts that are not visible from an
 
 - Kotlin official style as enforced by `./gradlew lint`; do not hand-format against a different convention.
 - Dependency versions live only in `gradle/libs.versions.toml` — never inline a version in a `build.gradle.kts`, and never duplicate one into this file.
-- Date/time: `java.time` with an explicit `Clock` injected into scheduling logic, so tests can advance time.
+- Date/time: `java.time` with both `Clock` and `ZoneId` injected into scheduling logic, so tests can advance time and change timezone.
+- Due dates are whole local calendar days in the device's *current* timezone, with no correction for travel: store instants, derive local dates on read.
 
 ## Commits and pull requests
 
