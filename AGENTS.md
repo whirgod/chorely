@@ -36,6 +36,14 @@ Everything runs through the Gradle wrapper from the repo root:
 
 Never invoke `gradle` directly — only `./gradlew`, so the pinned wrapper version is used.
 
+## CI
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every PR to `main` and on pushes to it.
+
+- `build` runs the same gate as the pre-push one, then compiles the instrumented tests.
+- `instrumented-tests` boots an API 26 emulator — the app's `minSdk` — and runs `:core:data:connectedDebugAndroidTest`. **This is the only place instrumented tests ever run**, since the dev machine has no `/dev/kvm`; treat a failure there as real rather than as flakiness to retry.
+- `main` is protected: it takes pull requests only, both checks must pass, and force-pushes and deletions are blocked. Renaming a job in the workflow breaks the required check until the protection rule is renamed to match.
+
 ## Domain invariants
 
 All of these are implemented in one pure function, `catchUp` in `:core:domain`, and pinned by `CatchUpTest`. Change due-date behaviour there and nowhere else; if a rule is being expressed in a ViewModel, a DAO or a worker, it is in the wrong place.
