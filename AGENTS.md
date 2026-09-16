@@ -46,6 +46,7 @@ These span multiple files and are easy to get wrong from any single one:
 ## Never do
 
 - No network, account, analytics, or cloud-sync dependency — the app must work fully offline, and adding an internet permission is a product change, not an implementation detail.
+- Do not build anything listed under Rejected in [BACKLOG.md](BACKLOG.md) — streaks and completion rates especially, which look like an obvious improvement and are ruled out on purpose.
 - Android auto-backup is deliberately left **enabled** and is the one sanctioned exception to the no-cloud rule: it is the OS's own mechanism, the app never knows about it, and with no export feature it is all that survives a lost phone — do not "fix" it.
 - Do not pre-expand rows for future occurrences; store the recurrence rule plus the history of resolved ones.
 - Never delete or overwrite a resolved occurrence — the completion history is append-only, and archiving a chore must retain it.
