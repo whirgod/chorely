@@ -12,8 +12,8 @@ Early development. Nothing implemented yet. The domain model is settled; see
 
 ## Planned features
 
-- Chores that repeat either on set weekdays ("every Saturday") or after an
-  elapsed period since you last did them ("every 3 months")
+- Chores that repeat either on set weekdays ("every Saturday", the default) or
+  after an elapsed period since you last did them ("every 3 months")
 - One daily notification listing what is due, at a time you choose — silent on
   days with nothing due
 - Mark a chore done, early or late, or skip an occurrence you decided to pass on
@@ -22,12 +22,8 @@ Early development. Nothing implemented yet. The domain model is settled; see
 - Archive chores you no longer want without losing their history
 - Works fully offline; no account required
 
-## Later
-
-- Export and import your data to a file
-- Tags for grouping chores
-- Monthly and day-of-month schedules ("the 1st", "first Saturday")
-- Pausing a chore while you are away
+Ideas that are deferred, and ideas deliberately rejected, are in
+[BACKLOG.md](BACKLOG.md).
 
 ## Tech stack (planned)
 
