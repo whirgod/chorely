@@ -41,7 +41,8 @@ Never invoke `gradle` directly — only `./gradlew`, so the pinned wrapper versi
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every PR to `main` and on pushes to it.
 
 - `build` runs the same gate as the pre-push one, then compiles the instrumented tests.
-- `instrumented-tests` boots an API 26 emulator — the app's `minSdk` — and runs `:core:data:connectedDebugAndroidTest`. **This is the only place instrumented tests ever run**, since the dev machine has no `/dev/kvm`; treat a failure there as real rather than as flakiness to retry.
+- `instrumented-tests` boots an API 26 emulator — the app's `minSdk` — and runs `:core:data:connectedDebugAndroidTest`. **This is the only place instrumented tests ever run**, since the dev machine has no `/dev/kvm`.
+- A test assertion failing there is real; retrying it is how a Room bug gets shipped. Only two signatures are worth a `gh run rerun --failed`, both runner-level and both seen on the very first run: `Unable to connect to adb daemon`, and Gradle failing to resolve a plugin that demonstrably exists on Maven Central. If a re-run reproduces either, it is no longer the runner.
 - `main` is protected: it takes pull requests only, both checks must pass, and force-pushes and deletions are blocked. Renaming a job in the workflow breaks the required check until the protection rule is renamed to match.
 
 ## Domain invariants
