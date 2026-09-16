@@ -4,26 +4,33 @@
 
 Chorely is an offline-only Android app for recurring home cleaning chores: the user defines a chore with a repeat interval, the app computes when it is next due and fires a local notification. See [README.md](README.md) for the user-facing feature list.
 
-Planned stack: Kotlin, Jetpack Compose, Room, WorkManager/AlarmManager. Nothing is pinned until the Gradle project exists.
+Stack: Kotlin, Jetpack Compose, Navigation 3, Room, Hilt, WorkManager. Modules are `:app`, `:core:data` and `:core:domain`; see [docs/adr/0003](docs/adr/0003-three-modules-with-a-pure-domain.md) for why, and read it before adding a module or moving code between them.
 
-**The repository contains no code yet** — only README, `.gitignore`, and agent config. The first implementation task must scaffold the Gradle project (see Setup).
+The UI is scaffolding: `AgendaScreen` works, the chore/editor/archive/settings screens are marked `TODO` and render placeholder text. Everything beneath them is real.
 
 ## Setup
 
-This machine has no JDK, no Android SDK, and no `android` CLI on `PATH` — verify with `java -version` before assuming otherwise.
+Gradle needs `JAVA_HOME` and `ANDROID_HOME` exported; neither is on this machine's profile:
 
-- Install the CLI: `curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash`, then use `android sdk install …` for platform/build-tools packages.
-- Scaffold the project with `android create empty-activity --name="Chorely" --output=.` rather than hand-writing Gradle files; the template ships a working wrapper, version catalog, and Compose setup.
+```
+export JAVA_HOME=$HOME/.jdks/jdk-17.0.20.1+1
+export ANDROID_HOME=$HOME/Android/Sdk
+```
+
+- There is no system JDK and `apt` needs sudo — the JDK above was unpacked from Adoptium into `~/.jdks`. Check it is still there before concluding the build is broken.
+- The Android SDK and the `android` CLI (`~/.local/bin/android`) were installed by `curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash`.
+- No emulator is possible here: this WSL2 kernel has no `/dev/kvm`, so `connectedDebugAndroidTest` cannot run locally. Instrumented tests are still written and must at least compile via `assembleDebugAndroidTest`.
 - The `android-cli`, `testing-setup`, `navigation-3`, `edge-to-edge`, and `styles` skills in [.agents/skills](.agents/skills) are the authority for Android tooling and API-level questions — read the relevant SKILL.md instead of recalling API details.
 - Use `android docs <keywords>` for current Android API guidance; training knowledge of Jetpack APIs is routinely stale.
 
 ## Commands
 
-Once scaffolded, everything runs through the Gradle wrapper from the repo root:
+Everything runs through the Gradle wrapper from the repo root:
 
 - Build debug APK: `./gradlew assembleDebug`
-- Unit tests: `./gradlew testDebugUnitTest`
-- Instrumented tests (needs a running device/emulator): `./gradlew connectedDebugAndroidTest`
+- Unit tests: `./gradlew test` (`:core:domain:test` alone is the fast loop for due-date work)
+- Instrumented tests (needs a device; impossible here, see Setup): `./gradlew connectedDebugAndroidTest`
+- Compile instrumented tests without running them: `./gradlew assembleDebugAndroidTest`
 - Lint: `./gradlew lint`
 - Full pre-commit gate: `./gradlew build lint test`
 
@@ -31,16 +38,16 @@ Never invoke `gradle` directly — only `./gradlew`, so the pinned wrapper versi
 
 ## Domain invariants
 
-These span multiple files and are easy to get wrong from any single one:
+All of these are implemented in one pure function, `catchUp` in `:core:domain`, and pinned by `CatchUpTest`. Change due-date behaviour there and nowhere else; if a rule is being expressed in a ViewModel, a DAO or a worker, it is in the wrong place.
 
 - A recurrence is **calendar-anchored** (external rhythm: "every Tuesday" — a late completion must not move the next due date) or **completion-anchored** (internal clock: "every 3 months" — the next due date is computed from the completion timestamp, so late completion shifts the whole series); see [CONTEXT.md](CONTEXT.md) before touching due-date logic.
 - Every chore has exactly one **outstanding** occurrence at a time, including completion-anchored ones, so "what is outstanding now" is a single query rather than a union over the two kinds.
 - Only calendar-anchored occurrences auto-skip, and only once the next one falls due; a completion-anchored occurrence stays outstanding indefinitely, because nothing arrives to displace it.
-- Never auto-skip an occurrence the user has not yet been notified about — otherwise a daily chore's occurrence can appear and vanish unseen, recorded as a lapse the user never had a chance to act on.
+- Never auto-skip an occurrence the user has not yet been shown: catch-up is guarded by a global `seenThrough` date that only `Chores.markSeen()` advances, and the digest worker calls it **only after a notification was actually posted** — see [docs/adr/0002](docs/adr/0002-the-user-must-have-seen-an-occurrence-before-it-can-lapse.md).
 - Occurrences may be completed **before** their due date; do not assert completion timestamps fall after due dates.
 - The outstanding occurrence is **derived** from the recurrence plus the newest stored resolution, never stored — so a device that has been off for a month shows correct state the moment it opens, with no background job involved.
-- Resolved occurrences are **stored**, auto-skips included: any code path that touches a chore first runs catch-up, writing rows for occurrences the rule says have since been displaced, and only then reads. Catch-up is idempotent.
-- Editing a recurrence recomputes the outstanding occurrence's due date, but an occurrence that was already overdue must stay flagged as such — a rule change must never make a neglected chore look clean.
+- Reads derive and never write: `Chores.agenda()` and `detail()` run catch-up in memory, so collecting a Flow has no side effects. Auto-skips are persisted only by `markSeen()` and by the mutating methods, each of which catches up inside its own transaction first. Catch-up is idempotent, so the two paths cannot disagree.
+- Editing a recurrence recomputes the outstanding due date, but an occurrence that was already overdue must stay at least as overdue — see `retarget`. The recomputed date sticks because the edit moves `Chore.anchoredOn`, which makes every older resolution superseded and invisible to catch-up; the history keeps them regardless.
 - Room is the single source of truth for schedules; anything scheduled with AlarmManager/WorkManager is a derived cache that must be rebuildable from the database alone.
 
 ## Never do
@@ -59,7 +66,9 @@ The reminder path is where sessions get lost. Facts that are not visible from an
 - `POST_NOTIFICATIONS` is a runtime permission on API 33+; a silently missing notification usually means it was never granted.
 - Exact alarms require `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM` on API 31+ and are Play-Store-restricted — prefer inexact scheduling unless a chore genuinely needs a precise minute.
 - WorkManager periodic work has a 15-minute minimum interval and is deliberately inexact under Doze; use it for a daily due-sweep, not for firing a reminder at a specific time.
-- Keep alarm/notification scheduling behind an interface so due-date logic stays unit-testable without a device.
+- The digest is chained one-shot `WorkManager` work, not periodic work, because periodic work cannot be aimed at a time of day; every run schedules the next, so any path that drops a run must call `Reminders.sync()`.
+- `Reminders.sync()` is idempotent and derives everything from Room — call it freely rather than tracking whether the schedule is stale.
+- `nextDigestDelay` is the only part of scheduling that can be silently *wrong* rather than broken; it is pure and unit-tested against DST, and new scheduling arithmetic belongs there too.
 
 ## Code style
 
@@ -67,6 +76,8 @@ The reminder path is where sessions get lost. Facts that are not visible from an
 - Dependency versions live only in `gradle/libs.versions.toml` — never inline a version in a `build.gradle.kts`, and never duplicate one into this file.
 - Date/time: `java.time` with both `Clock` and `ZoneId` injected into scheduling logic, so tests can advance time and change timezone.
 - Due dates are whole local calendar days in the device's *current* timezone, with no correction for travel: store instants, derive local dates on read.
+- `minSdk` is 26 so `java.time` needs no core library desugaring — lowering it means adding desugaring to both Android modules, not just changing the number.
+- `:core:domain` must stay a plain Kotlin JVM module: if something there needs Android, it needs a port instead.
 
 ## Commits and pull requests
 
