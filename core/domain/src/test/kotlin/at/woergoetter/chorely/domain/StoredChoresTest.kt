@@ -204,6 +204,22 @@ class StoredChoresTest {
     }
 
     @Test
+    fun `lapses written in one catch-up still come back newest first`() = runTest {
+        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
+        travelTo("2026-10-03")
+        chores.markSeen() // nothing has lapsed yet: none of it had been shown
+        travelTo("2026-10-10")
+
+        chores.markSeen()
+
+        val history = chores.detail(id).first()!!.history
+        assertEquals(
+            listOf(date("2026-10-03"), date("2026-09-26"), date("2026-09-19")),
+            history.map { it.dueDate },
+        )
+    }
+
+    @Test
     fun `archiving stops a chore falling due but keeps its history`() = runTest {
         val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
         travelTo("2026-09-19")

@@ -29,7 +29,7 @@ class FakeChoreStore : ChoreStore {
     override fun book(): Flow<ChoreBook> = state.map { it.book() }
 
     override fun history(id: ChoreId): Flow<List<Resolution>> =
-        state.map { s -> s.history[id].orEmpty().sortedByDescending { it.at } }
+        state.map { s -> s.history[id].orEmpty().sortedWith(newestFirst) }
 
     override suspend fun <T> transact(block: suspend (ChoreEdit) -> T): T = lock.withLock {
         val entry = state.value
@@ -81,8 +81,18 @@ class FakeChoreStore : ChoreStore {
 
     private fun State.book() = ChoreBook(
         chores = chores.map { chore ->
-            ChoreRecord(chore, history[chore.id].orEmpty().maxByOrNull { it.dueDate })
+            ChoreRecord(chore, history[chore.id].orEmpty().maxWithOrNull(byDueDateThenRecorded))
         },
         seenThrough = seenThrough,
     )
+
+    private companion object {
+        /**
+         * Room orders history by `dueDate DESC, resolvedAt DESC`, and a catch-up stamps every
+         * lapse it writes with one instant — so ordering on the instant alone would hand the
+         * domain a run of lapses oldest first, which is not what the adapter returns.
+         */
+        val byDueDateThenRecorded = compareBy<Resolution>({ it.dueDate }, { it.at })
+        val newestFirst = byDueDateThenRecorded.reversed()
+    }
 }
