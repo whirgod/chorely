@@ -32,6 +32,13 @@ long limescale takes. Doing it late moves the whole future series later, and
 that is correct rather than drift.
 _Avoid_: Floating, elapsed, relative, since-last
 
+**Anchor**:
+The day a chore's current recurrence starts from: the due date of the first
+occurrence it places, and the line behind which older resolutions count as
+superseded. Set when a chore is created or restored, and moved by an edit;
+resolving an occurrence never touches it.
+_Avoid_: Start date, baseline, epoch, since
+
 **Occurrence**:
 A single expected doing of a chore, on a due date. Every chore has exactly one
 outstanding occurrence at a time; resolving it produces the next.

@@ -7,8 +7,15 @@ kettle every 3 months — and Chorely works out what is due and reminds you.
 
 ## Status
 
-Early development. Nothing implemented yet. The domain model is settled; see
-[CONTEXT.md](CONTEXT.md).
+Early development. The domain is implemented and tested; the UI is scaffolding.
+
+- **Done**: the recurrence and occurrence model, catch-up and auto-skip, the
+  Room store, reminder scheduling and the daily digest notification.
+- **Not done**: the chore, editor, archive and settings screens render
+  placeholder text. The agenda screen works.
+
+The vocabulary is in [CONTEXT.md](CONTEXT.md), the decisions behind the model
+and the module layout are in [docs/adr](docs/adr).
 
 ## Planned features
 
@@ -25,9 +32,19 @@ Early development. Nothing implemented yet. The domain model is settled; see
 Ideas that are deferred, and ideas deliberately rejected, are in
 [BACKLOG.md](BACKLOG.md).
 
-## Tech stack (planned)
+## Tech stack
 
-- Kotlin
-- Jetpack Compose
-- Room for local persistence
-- WorkManager / AlarmManager for reminder scheduling
+- Kotlin, Jetpack Compose, Navigation 3
+- Room for local persistence, Hilt for wiring
+- WorkManager for the daily reminder
+
+Three Gradle modules: `:core:domain` is plain JVM and holds every due-date rule,
+`:core:data` implements its ports over Room, and `:app` is UI and platform.
+
+## Building
+
+```
+export JAVA_HOME=$HOME/.jdks/jdk-17.0.20.1+1
+export ANDROID_HOME=$HOME/Android/Sdk
+./gradlew build lint test
+```
