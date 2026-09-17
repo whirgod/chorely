@@ -40,8 +40,13 @@ fun AgendaScreen(
 ) {
     val agenda by viewModel.agenda.collectAsStateWithLifecycle()
 
-    // Being on screen is what makes an occurrence "seen"; see AgendaViewModel.onShown.
-    LaunchedEffect(Unit) { viewModel.onShown() }
+    // Being shown what is due is what makes an occurrence "seen", so this waits for the
+    // agenda to arrive rather than for the screen to open: until the first emission there is
+    // nothing on screen to have seen. An agenda that arrives empty still counts — every
+    // active chore is on it, so an empty one is the whole truth. See AgendaViewModel.onShown.
+    if (agenda != null) {
+        LaunchedEffect(Unit) { viewModel.onShown() }
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -61,9 +66,10 @@ fun AgendaScreen(
         },
     ) { padding ->
         LazyColumn(modifier = Modifier.padding(padding)) {
-            dueSection(R.string.overdue, agenda.overdue, onOpenChore, viewModel::onComplete, viewModel::onSkip)
-            dueSection(R.string.due_today, agenda.today, onOpenChore, viewModel::onComplete, viewModel::onSkip)
-            dueSection(R.string.coming_up, agenda.upcoming, onOpenChore, viewModel::onComplete, viewModel::onSkip)
+            val shown = agenda ?: return@LazyColumn
+            dueSection(R.string.overdue, shown.overdue, onOpenChore, viewModel::onComplete, viewModel::onSkip)
+            dueSection(R.string.due_today, shown.today, onOpenChore, viewModel::onComplete, viewModel::onSkip)
+            dueSection(R.string.coming_up, shown.upcoming, onOpenChore, viewModel::onComplete, viewModel::onSkip)
         }
     }
 }

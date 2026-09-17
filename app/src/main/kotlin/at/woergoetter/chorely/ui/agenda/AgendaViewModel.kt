@@ -22,13 +22,18 @@ class AgendaViewModel @Inject constructor(
     private val chores: Chores,
 ) : ViewModel() {
 
-    val agenda: StateFlow<Agenda> = chores.agenda()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Agenda())
+    /** Null until the store has emitted: a seed value is not something the user was shown. */
+    val agenda: StateFlow<Agenda?> = chores.agenda()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /**
-     * Called when the overview is actually on screen. This is the other half of the
-     * auto-skip guard: an occurrence counts as seen if the user was shown it here or by the
-     * daily digest, and only a seen occurrence may be recorded as a lapse.
+     * Called once the overview has put a real [agenda] on screen — not when it was merely
+     * opened. This is the other half of the auto-skip guard: an occurrence counts as seen
+     * if the user was shown it here or by the daily digest, and only a seen occurrence may
+     * be recorded as a lapse, so a screen that showed nothing must not advance it.
+     *
+     * When that moment has arrived is the caller's to judge, because "the first emission is
+     * on screen" is a fact about the UI and not a rule about due dates.
      */
     fun onShown() = viewModelScope.launch { chores.markSeen() }
 
