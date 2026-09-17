@@ -2,7 +2,6 @@ package at.woergoetter.chorely.data
 
 import at.woergoetter.chorely.domain.ReminderSettings
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.time.LocalTime
 
@@ -25,6 +24,4 @@ internal class RoomReminderSettings(
         val minutes = time?.let { it.hour * 60 + it.minute }
         database.patchAppState { it.copy(reminderMinuteOfDay = minutes) }
     }
-
-    suspend fun currentReminderTime(): LocalTime? = reminderTime().first()
 }
