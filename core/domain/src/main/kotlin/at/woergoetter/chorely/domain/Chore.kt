@@ -16,12 +16,15 @@ data class Chore(
     val name: String,
     val recurrence: Recurrence,
     /**
-     * The first day on which the *current* rule may place an occurrence.
+     * The due date of the *current* rule's first occurrence.
      *
-     * Set to today when the chore is created or restored, and moved by an edit to wherever
-     * the new rule puts the outstanding occurrence. Resolutions older than this belong to a
-     * superseded rule: they stay in the history as record, and [catchUp] ignores them. This
-     * is what lets an edit re-target the outstanding occurrence without storing it.
+     * Set from today when the chore is created or restored — rounded onto the rule's grid by
+     * [anchorFor] — and moved by an edit to wherever the new rule puts the outstanding
+     * occurrence. A due date rather than a lower bound on one, so an edit can hold an overdue
+     * occurrence on a day the new rule would never place one. Resolutions older than this
+     * belong to a superseded rule: they stay in the history as record, and [catchUp] ignores
+     * them. Together that is what lets an edit re-target the outstanding occurrence without
+     * storing it.
      */
     val anchoredOn: LocalDate,
     /** Non-null once archived. Archiving never destroys history. */

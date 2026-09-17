@@ -24,8 +24,9 @@ data class CatchUp(
  *
  * What it decides, so that nothing else has to:
  *
- * - **The first occurrence.** With no resolution in play, the chore falls due on the first
- *   day on or after [Chore.anchoredOn] that its recurrence allows.
+ * - **The first occurrence.** With no resolution in play, the chore falls due on
+ *   [Chore.anchoredOn] itself — the anchor is a due date, not a lower bound on one, and
+ *   [anchorFor] is where a day becomes an anchor.
  * - **Superseded history.** A resolution older than [Chore.anchoredOn] was made under a
  *   rule that no longer applies; it stays in the history but does not move the series.
  * - **Calendar anchoring.** After a resolution, the next due date is the next day on the
@@ -87,15 +88,25 @@ fun retarget(previous: Occurrence, recomputed: Occurrence, today: LocalDate): Oc
     if (previous.isOverdue(today)) previous.copy(dueDate = minOf(recomputed.dueDate, previous.dueDate))
     else recomputed
 
-private fun Chore.nextDueDate(lastResolution: Resolution?, clock: Clock): LocalDate =
-    when (recurrence) {
-        is Recurrence.OnWeekdays -> when (lastResolution) {
-            null -> recurrence.firstDueOnOrAfter(anchoredOn)
-            else -> recurrence.nextDueAfter(lastResolution.dueDate)
-        }
+/**
+ * The anchor a chore takes when [recurrence] becomes its rule on [day].
+ *
+ * [Chore.anchoredOn] is the due date of the current rule's first occurrence rather than a
+ * lower bound on it, so a day is rounded onto the rule's own grid here — once, where the day
+ * is chosen — and never again on read. That is what lets [retarget] keep an overdue
+ * occurrence on a day the new rule would never place one; see
+ * `docs/adr/0004-the-anchor-is-a-due-date-not-a-lower-bound.md`.
+ */
+fun anchorFor(recurrence: Recurrence, day: LocalDate): LocalDate = recurrence.firstDueOnOrAfter(day)
+
+private fun Chore.nextDueDate(lastResolution: Resolution?, clock: Clock): LocalDate {
+    // Nothing in play: the anchor is this rule's first occurrence, so it stands unaltered —
+    // including, after an edit, on a day the rule itself would not have chosen.
+    if (lastResolution == null) return anchoredOn
+    return when (recurrence) {
+        is Recurrence.OnWeekdays -> recurrence.nextDueAfter(lastResolution.dueDate)
 
         is Recurrence.Every -> when (lastResolution) {
-            null -> anchoredOn
             // Measured from the day it was actually done: that is what "elapsed since last
             // done" means, and it is why doing it late shifts the whole series.
             is Resolution.Completion ->
@@ -105,3 +116,4 @@ private fun Chore.nextDueDate(lastResolution: Resolution?, clock: Clock): LocalD
             is Resolution.Skip -> lastResolution.dueDate.plus(recurrence.period)
         }
     }
+}

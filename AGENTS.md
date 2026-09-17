@@ -56,7 +56,7 @@ All of these are implemented in one pure function, `catchUp` in `:core:domain`, 
 - Occurrences may be completed **before** their due date; do not assert completion timestamps fall after due dates.
 - The outstanding occurrence is **derived** from the recurrence plus the newest stored resolution, never stored — so a device that has been off for a month shows correct state the moment it opens, with no background job involved.
 - Reads derive and never write: `Chores.agenda()` and `detail()` run catch-up in memory, so collecting a Flow has no side effects. Auto-skips are persisted only by `markSeen()` and by the mutating methods, each of which catches up inside its own transaction first. Catch-up is idempotent, so the two paths cannot disagree.
-- Editing a recurrence recomputes the outstanding due date, but an occurrence that was already overdue must stay at least as overdue — see `retarget`. The recomputed date sticks because the edit moves `Chore.anchoredOn`, which makes every older resolution superseded and invisible to catch-up; the history keeps them regardless.
+- Editing a recurrence recomputes the outstanding due date, but an occurrence that was already overdue must stay at least as overdue — see `retarget`. The recomputed date sticks because the edit moves `Chore.anchoredOn`, which is a due date and not a lower bound on one ([docs/adr/0004](docs/adr/0004-the-anchor-is-a-due-date-not-a-lower-bound.md)), and which makes every older resolution superseded and invisible to catch-up; the history keeps them regardless.
 - Room is the single source of truth for schedules; anything scheduled with AlarmManager/WorkManager is a derived cache that must be rebuildable from the database alone.
 
 ## Never do

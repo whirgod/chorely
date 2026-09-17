@@ -5,6 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.DayOfWeek.MONDAY
 import java.time.DayOfWeek.SATURDAY
+import java.time.DayOfWeek.SUNDAY
 import java.time.DayOfWeek.THURSDAY
 
 /**
@@ -16,9 +17,16 @@ class CatchUpTest {
     // 2026-09-16 is a Wednesday; 09-19 Saturday; 09-21 Monday.
 
     @Test
-    fun `a new calendar-anchored chore falls due on the first matching day from its anchor`() {
+    fun `a rule taken up mid-week is anchored on the first day it allows`() {
+        // The rounding happens once, when the day becomes an anchor — not on every read.
+        assertEquals(date("2026-09-19"), anchorFor(weekly(SATURDAY), date("2026-09-16")))
+        assertEquals(date("2026-09-16"), anchorFor(everyMonths(3), date("2026-09-16")))
+    }
+
+    @Test
+    fun `with nothing resolved, a chore falls due on its anchor`() {
         val result = catchUp(
-            chore = chore(weekly(SATURDAY), anchoredOn = "2026-09-16"),
+            chore = chore(weekly(SATURDAY), anchoredOn = "2026-09-19"),
             lastResolution = null,
             seenThrough = null,
             clock = clockAt(date("2026-09-16")),
@@ -27,14 +35,16 @@ class CatchUpTest {
     }
 
     @Test
-    fun `an anchor that already lands on a matching day is itself the first due date`() {
+    fun `an anchor the current rule would not have chosen is still the due date`() {
+        // What an edit leaves behind: overdue since a Wednesday, now a Sunday chore. The
+        // anchor is a due date, so catch-up returns it rather than rounding the lapse away.
         val result = catchUp(
-            chore = chore(weekly(SATURDAY), anchoredOn = "2026-09-19"),
+            chore = chore(weekly(SUNDAY), anchoredOn = "2026-09-16"),
             lastResolution = null,
             seenThrough = null,
-            clock = clockAt(date("2026-09-16")),
+            clock = clockAt(date("2026-09-18")),
         )
-        assertEquals(date("2026-09-19"), result.outstanding.dueDate)
+        assertEquals(date("2026-09-16"), result.outstanding.dueDate)
     }
 
     @Test

@@ -64,19 +64,33 @@ class StoredChores(
     }
 
     override suspend fun add(draft: ChoreDraft): ChoreId = store.transact { edit ->
-        edit.insert(draft, anchoredOn = LocalDate.now(clock))
+        edit.insert(draft, anchoredOn = anchorFor(draft.recurrence, LocalDate.now(clock)))
     }
 
     override suspend fun edit(id: ChoreId, draft: ChoreDraft): Unit = store.transact { edit ->
         val (record, seenThrough) = edit.caughtUp(id) ?: return@transact
         val previous = record.outstanding(seenThrough)
-        val edited = record.chore.copy(name = draft.name, recurrence = draft.recurrence)
+        // The new rule taken up where the old one started, so that `recomputed` is what the
+        // rule gives on its own rather than what the old anchor happened to allow.
+        val edited = record.chore.copy(
+            name = draft.name,
+            recurrence = draft.recurrence,
+            anchoredOn = anchorFor(draft.recurrence, record.chore.anchoredOn),
+        )
         val recomputed = catchUp(edited, record.lastResolution, seenThrough, clock).outstanding
         val target = retarget(previous, recomputed, LocalDate.now(clock))
 
-        // Re-anchoring is what makes the target stick: every resolution in play has a due
-        // date strictly before `previous`, and `target` never falls after `previous`, so
-        // none of them survives the new anchor and the derivation lands exactly on `target`.
+        // Re-anchoring is what makes the target stick, and it sticks exactly: an anchor is a
+        // due date, so the derivation returns `target` itself even when the new rule would
+        // never have placed an occurrence there. Every resolution in play is due strictly
+        // before the occurrence it produced, and `target` never falls after `previous`, so
+        // none of them survives the new anchor either.
+        //
+        // The one state this cannot express: a chore whose newest resolution is due *after*
+        // its own outstanding occurrence — reachable only by resolving the same chore twice
+        // in a day under a completion-anchored rule, which records a resolution for an
+        // occurrence a period ahead. No anchor can name `target` and supersede that
+        // resolution at once, so the new rule steps from the resolution instead.
         edit.update(edited.copy(anchoredOn = target.dueDate))
     }
 
@@ -97,7 +111,8 @@ class StoredChores(
         val record = edit.book().record(id) ?: return@transact
         // Re-anchored to today: a chore archived for a year should not come back a year
         // overdue, and its history stays intact behind the new anchor.
-        edit.update(record.chore.copy(archivedAt = null, anchoredOn = LocalDate.now(clock)))
+        val anchoredOn = anchorFor(record.chore.recurrence, LocalDate.now(clock))
+        edit.update(record.chore.copy(archivedAt = null, anchoredOn = anchoredOn))
     }
 
     override suspend fun delete(id: ChoreId): Unit = store.transact { edit -> edit.delete(id) }

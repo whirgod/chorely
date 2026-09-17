@@ -7,7 +7,11 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Clock
+import java.time.DayOfWeek.MONDAY
 import java.time.DayOfWeek.SATURDAY
+import java.time.DayOfWeek.SUNDAY
+import java.time.DayOfWeek.TUESDAY
+import java.time.DayOfWeek.WEDNESDAY
 import java.time.LocalDate
 
 /**
@@ -136,7 +140,7 @@ class StoredChoresTest {
     fun `editing a recurrence moves the outstanding occurrence`() = runTest {
         val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
 
-        chores.edit(id, ChoreDraft("Vacuum", weekly(java.time.DayOfWeek.MONDAY)))
+        chores.edit(id, ChoreDraft("Vacuum", weekly(MONDAY)))
 
         assertEquals(date("2026-09-21"), chores.detail(id).first()!!.outstanding.dueDate)
     }
@@ -151,6 +155,52 @@ class StoredChoresTest {
         val outstanding = chores.detail(id).first()!!.outstanding
         assertEquals(date("2026-09-16"), outstanding.dueDate)
         assertTrue(outstanding.isOverdue(date("2026-12-01")))
+    }
+
+    @Test
+    fun `editing to a rule that cannot fall on the overdue day leaves it there anyway`() = runTest {
+        // Wednesdays, overdue since Wednesday the 16th, changed to Sundays on the Friday.
+        // The next Sunday is the 20th: landing there would hand the user back a clean chore.
+        val id = chores.add(ChoreDraft("Vacuum", weekly(WEDNESDAY)))
+        travelTo("2026-09-18")
+
+        chores.edit(id, ChoreDraft("Vacuum", weekly(SUNDAY)))
+
+        val outstanding = chores.detail(id).first()!!.outstanding
+        assertEquals(date("2026-09-16"), outstanding.dueDate)
+        assertTrue(outstanding.isOverdue(date("2026-09-18")))
+    }
+
+    @Test
+    fun `an edit holds the overdue day without reviving the completion behind it`() = runTest {
+        // Mon and Thu, done on the Monday, overdue since the Tuesday, changed to Sundays on
+        // the Wednesday: the target sits between the completion and the new rule's days.
+        val id = chores.add(ChoreDraft("Bins", weekly(MONDAY, TUESDAY)))
+        travelTo("2026-09-21")
+        chores.complete(id)
+        travelTo("2026-09-23")
+
+        chores.edit(id, ChoreDraft("Bins", weekly(SUNDAY)))
+
+        val detail = chores.detail(id).first()!!
+        assertEquals(date("2026-09-22"), detail.outstanding.dueDate)
+        assertEquals(listOf(date("2026-09-21")), detail.history.map { it.dueDate })
+    }
+
+    @Test
+    fun `an edit cannot hold a chore whose newest resolution is due after it`() = runTest {
+        // The documented residual gap: resolving twice in one day records a resolution for an
+        // occurrence a period ahead, and no anchor can name the overdue day *and* supersede
+        // that resolution, so the new rule steps from the resolution instead.
+        val id = chores.add(ChoreDraft("Kettle", everyMonths(3)))
+        chores.complete(id)
+        chores.complete(id) // resolves the occurrence due 2026-12-16
+        chores.edit(id, ChoreDraft("Kettle", everyDays(1)))
+        travelTo("2026-09-20") // overdue since the 17th
+
+        chores.edit(id, ChoreDraft("Kettle", weekly(SUNDAY)))
+
+        assertEquals(date("2026-12-20"), chores.detail(id).first()!!.outstanding.dueDate)
     }
 
     @Test
