@@ -22,6 +22,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -72,8 +75,15 @@ fun AgendaScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddChore) {
-                Text("+")
+            // The glyph is the whole label, and "plus" is not what it means: the description
+            // is set on the button and the glyph cleared, so a screen reader announces the
+            // action rather than the character.
+            val addChore = stringResource(R.string.add_chore)
+            FloatingActionButton(
+                onClick = onAddChore,
+                modifier = Modifier.semantics { contentDescription = addChore },
+            ) {
+                Text("+", modifier = Modifier.clearAndSetSemantics {})
             }
         },
     ) { padding ->
