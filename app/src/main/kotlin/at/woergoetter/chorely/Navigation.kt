@@ -2,8 +2,10 @@ package at.woergoetter.chorely
 
 import androidx.compose.runtime.Composable
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import at.woergoetter.chorely.domain.ChoreId
 import at.woergoetter.chorely.ui.agenda.AgendaScreen
@@ -20,6 +22,14 @@ fun ChorelyNavigation() {
     NavDisplay(
         backStack = backStack,
         onBack = { back() },
+        // Without the ViewModelStore decorator every hiltViewModel() below resolves against
+        // the Activity's store: one instance per type shared by every entry, never cleared
+        // when an entry is popped. Passing `entryDecorators` replaces NavDisplay's defaults
+        // rather than adding to them, so the saveable-state one has to be named again here.
+        entryDecorators = listOf(
+            rememberSaveableStateHolderNavEntryDecorator(),
+            rememberViewModelStoreNavEntryDecorator(),
+        ),
         entryProvider = entryProvider {
             entry<AgendaRoute> {
                 AgendaScreen(

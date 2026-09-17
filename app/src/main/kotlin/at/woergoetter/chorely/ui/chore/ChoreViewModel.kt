@@ -19,12 +19,13 @@ class ChoreViewModel @Inject constructor(
      * A cold Flow, built afresh on every call, which the caller must hold onto for as long
      * as it collects it — see the note in ChoreScreen.
      *
-     * The other ViewModels here expose a StateFlow instead, and this one cannot: that needs
-     * the chore id at construction, and Navigation 3 hands its key to the entry rather than
-     * to a SavedStateHandle, so nothing carries the id into Hilt's factory. The route that
-     * would is assisted injection with a `creationCallback` at the entry, plus a
-     * `rememberViewModelStoreNavEntryDecorator()` on the NavDisplay so the ViewModel is
-     * scoped to the entry at all — both of which live in Navigation.kt.
+     * The other ViewModels here expose a StateFlow instead, and this one does not yet: that
+     * needs the chore id at construction, and Navigation 3 hands its key to the entry rather
+     * than to a SavedStateHandle, so nothing carries the id into Hilt's factory on its own.
+     * The remaining step is assisted injection — `@HiltViewModel(assistedFactory = ...)` here
+     * and `hiltViewModel(creationCallback = { it.create(route) })` at the entry — after which
+     * the id can move to the constructor and `detail` can become a StateFlow like its peers.
+     * Left until the screen itself is built, since its shape will decide what this exposes.
      */
     fun detail(id: ChoreId): Flow<ChoreDetail?> = chores.detail(id)
 

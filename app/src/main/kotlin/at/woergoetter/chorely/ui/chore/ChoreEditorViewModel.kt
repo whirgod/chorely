@@ -16,6 +16,10 @@ class ChoreEditorViewModel @Inject constructor(
     private val reminders: Reminders,
 ) : ViewModel() {
 
+    // Careful when wiring the form: ViewModels are scoped to their nav entry, so popping the
+    // editor clears this one and cancels the scope. Saving and then navigating back in the
+    // same gesture must not leave the write in a cancelled scope — the write needs to outlive
+    // the screen, which viewModelScope by itself does not guarantee.
     fun onSave(id: ChoreId?, draft: ChoreDraft) = viewModelScope.launch {
         if (id == null) chores.add(draft) else chores.edit(id, draft)
         // A first chore makes the digest worth scheduling; sync is idempotent, so calling
