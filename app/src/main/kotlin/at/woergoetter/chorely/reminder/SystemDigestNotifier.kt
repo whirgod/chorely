@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -36,8 +37,12 @@ class SystemDigestNotifier @Inject constructor(
     override suspend fun post(due: List<DueChore>): Boolean {
         if (due.isEmpty()) return false
         // Inline rather than behind a helper: lint only recognises the guard when the check
-        // and the notify() it protects sit in the same function.
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+        // and the notify() it protects sit in the same function. The SDK_INT half is not
+        // decoration: POST_NOTIFICATIONS does not exist below API 33, so the platform never
+        // grants it and checkSelfPermission answers DENIED on every device from minSdk 26 up
+        // to 32 — which would silence the digest exactly where it needs no permission at all.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) {
             return false
