@@ -23,7 +23,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import at.woergoetter.chorely.R
 import at.woergoetter.chorely.domain.ChoreId
 import at.woergoetter.chorely.domain.DueChore
@@ -44,8 +47,17 @@ fun AgendaScreen(
     // agenda to arrive rather than for the screen to open: until the first emission there is
     // nothing on screen to have seen. An agenda that arrives empty still counts — every
     // active chore is on it, so an empty one is the whole truth. See AgendaViewModel.onShown.
+    //
+    // Once per resume rather than once per composition: the composition survives being
+    // backgrounded, so a screen first shown yesterday is shown again today without ever being
+    // recomposed, and keying this on Unit would leave seenThrough stuck on the day the
+    // composition began. markSeen() is idempotent within a day, so a spare resume costs
+    // nothing.
     if (agenda != null) {
-        LaunchedEffect(Unit) { viewModel.onShown() }
+        val lifecycle = LocalLifecycleOwner.current.lifecycle
+        LaunchedEffect(lifecycle, viewModel) {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { viewModel.onShown() }
+        }
     }
 
     Scaffold(
