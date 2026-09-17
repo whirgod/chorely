@@ -57,13 +57,8 @@ internal class RoomChoreStore(
 
         override suspend fun delete(id: ChoreId) = dao.deleteChore(id.value)
 
-        override suspend fun markSeen(through: LocalDate) {
-            val current = dao.appState()
-            dao.upsertAppState(
-                current?.copy(seenThrough = through.toEpochDay())
-                    ?: AppStateEntity(seenThrough = through.toEpochDay(), reminderMinuteOfDay = null),
-            )
-        }
+        override suspend fun markSeen(through: LocalDate) =
+            database.patchAppState { it.copy(seenThrough = through.toEpochDay()) }
     }
 
     private fun book(

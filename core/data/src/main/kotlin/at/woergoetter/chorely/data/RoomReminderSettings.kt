@@ -22,12 +22,8 @@ internal class RoomReminderSettings(
     }
 
     override suspend fun setReminderTime(time: LocalTime?) {
-        val current = dao.appState()
         val minutes = time?.let { it.hour * 60 + it.minute }
-        dao.upsertAppState(
-            current?.copy(reminderMinuteOfDay = minutes)
-                ?: AppStateEntity(seenThrough = null, reminderMinuteOfDay = minutes),
-        )
+        database.patchAppState { it.copy(reminderMinuteOfDay = minutes) }
     }
 
     suspend fun currentReminderTime(): LocalTime? = reminderTime().first()
