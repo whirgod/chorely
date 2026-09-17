@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import dagger.hilt.android.AndroidEntryPoint
 
 /**
  * Rebuilds the reminder schedule after a reboot.
@@ -13,8 +12,10 @@ import dagger.hilt.android.AndroidEntryPoint
  * Scheduled work and alarms do not survive one, and the database does — so this asks for the
  * schedule to be derived again rather than restoring anything. It delegates to a worker
  * because a receiver has no business doing database I/O in its ten-second window.
+ *
+ * Not a Hilt entry point: it injects nothing, and WorkManager is reached through its own
+ * singleton rather than through the graph.
  */
-@AndroidEntryPoint
 class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
