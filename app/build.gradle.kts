@@ -6,6 +6,23 @@ plugins {
   alias(libs.plugins.ksp)
 }
 
+// A release build takes its version from the tag the pipeline was triggered by, passed
+// in as `-Pchorely.versionName`. A local build has no tag, hence the placeholder.
+val releaseVersionName = providers.gradleProperty("chorely.versionName").getOrElse("1.0-dev")
+
+// Android refuses to install an APK whose versionCode is below the installed one, so the
+// code has to rise with the name. major.minor.patch is packed as MMmmpp (1.2.3 -> 10203)
+// and derived from the name rather than tracked by hand, so rebuilding a tag rebuilds the
+// same code. Any `-prerelease` suffix is dropped: it does not order.
+val releaseVersionParts = releaseVersionName.substringBefore('-').split('.')
+val versionPart = { index: Int -> releaseVersionParts.getOrNull(index)?.toIntOrNull() ?: 0 }
+val releaseVersionCode = (versionPart(0) * 10_000 + versionPart(1) * 100 + versionPart(2)).coerceAtLeast(1)
+
+// The pipeline decodes the keystore outside the workspace and points this at it. Without
+// it there is no release signing config at all, which is what a local `./gradlew build`
+// wants — it must not need the secrets to assemble an (unsigned) release.
+val releaseKeystore = providers.environmentVariable("CHORELY_KEYSTORE_FILE").orNull?.let(::file)
+
 android {
     namespace = "at.woergoetter.chorely"
     compileSdk = 36
@@ -13,13 +30,26 @@ android {
         applicationId = "at.woergoetter.chorely"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = releaseVersionCode
+        versionName = releaseVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = releaseKeystore
+                storePassword = providers.environmentVariable("CHORELY_KEYSTORE_PASSWORD").orNull
+                keyAlias = providers.environmentVariable("CHORELY_KEY_ALIAS").orNull
+                keyPassword = providers.environmentVariable("CHORELY_KEY_PASSWORD").orNull
+            }
+        }
     }
 
     buildTypes {
         release {
+            // Null when the keystore is absent, which is AGP's own default: an unsigned APK.
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
