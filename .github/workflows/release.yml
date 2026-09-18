@@ -31,11 +31,31 @@ jobs:
         id: version
         run: |
           version="${GITHUB_REF_NAME#v}"
-          # assembleRelease derives versionCode from this name, and a name it cannot
-          # parse would ship as code 1 and block every later install. Reject it here,
-          # where the only cost is deleting a tag.
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+          # assembleRelease derives versionCode from this name, so a name it cannot parse
+          # ships a code that blocks every later install. Reject it here, where the only
+          # cost is deleting a tag. Leading zeros are refused too: they would be read as
+          # octal by the arithmetic below.
+          if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
             echo "::error::tag '$GITHUB_REF_NAME' is not vMAJOR.MINOR.PATCH[-prerelease]"
+            exit 1
+          fi
+          major="${BASH_REMATCH[1]}"
+          minor="${BASH_REMATCH[2]}"
+          patch="${BASH_REMATCH[3]}"
+          # versionCode packs three digits to a field, so a field that overflows collides
+          # with the one above it: 1.2.1000 and 1.3.0 both pack to 1003000. The build
+          # refuses this too, but the tag is the thing that has to be deleted and retried.
+          if (( minor > 999 || patch > 999 )); then
+            echo "::error::tag '$GITHUB_REF_NAME': minor and patch must each be at most 999"
+            exit 1
+          fi
+          # versionCode is an Int on the platform; 2147.x.y would overflow it.
+          if (( major > 2146 )); then
+            echo "::error::tag '$GITHUB_REF_NAME': major must be at most 2146, since versionCode is an Int"
+            exit 1
+          fi
+          if (( major == 0 && minor == 0 && patch == 0 )); then
+            echo "::error::tag '$GITHUB_REF_NAME': 0.0.0 has no valid versionCode"
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"

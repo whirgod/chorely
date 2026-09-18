@@ -50,7 +50,8 @@ Never invoke `gradle` directly — only `./gradlew`, so the pinned wrapper versi
 [`.github/workflows/release.yml`](.github/workflows/release.yml) builds a signed APK and publishes it as a GitHub Release on any `v*` tag push; there is no other distribution channel.
 
 - The tag is the version: it must match `vMAJOR.MINOR.PATCH[-prerelease]`, the workflow rejects anything else, and a `-suffix` publishes as a prerelease.
-- `versionName` and `versionCode` in [`app/build.gradle.kts`](app/build.gradle.kts) are derived from that tag via `-Pchorely.versionName` (`1.2.3` packs to code `10203`) — never hand-edit either, and never reuse or move a tag, since a shipped `versionCode` can only ever rise.
+- `versionName` and `versionCode` in [`app/build.gradle.kts`](app/build.gradle.kts) are derived from that tag via `-Pchorely.versionName`, packed three digits to a field (`1.2.3` -> `1002003`) — never hand-edit either, and never reuse or move a tag, since a shipped `versionCode` can only ever rise.
+- That packing caps minor and patch at 999 and major at 2146 (`versionCode` is an `Int`); overflowing a field would silently collide with the field above it, so both the workflow and the build refuse such a version rather than shipping it.
 - Release signing comes from four `CHORELY_*` environment variables, backed by the `RELEASE_*` repository secrets listed at the top of the workflow; with none set there is no signing config at all, so a local `./gradlew build` assembles an unsigned release on purpose.
 - The workflow re-runs `lint test` because a tag can point at a commit that never went through `ci.yml`, but it deliberately skips the emulator suite, which gates merges instead.
 
