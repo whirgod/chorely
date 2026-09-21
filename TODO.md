@@ -10,25 +10,11 @@ lands, not when it is planned.
 
 Everything below the UI is done: the recurrence and occurrence model, catch-up
 and auto-skip, the Room store, reminder scheduling and the digest notification.
-All five open items are the UI and the tests around the reminder path.
+All four open items are the UI and the tests around the reminder path.
 
 ## Next
 
-**1. The chore editor form**
-[`ChoreEditorScreen.kt`](app/src/main/kotlin/at/woergoetter/chorely/ui/chore/ChoreEditorScreen.kt)
-renders placeholder text. A name field, and a choice between the two
-recurrence kinds — `OnWeekdays` (day chips) and `Every` (a period).
-_Why first_: nothing can create a chore, so the agenda is permanently empty,
-the digest has nothing to report, and the other three screens cannot be
-exercised against real data. This is what turns the scaffolding into an app.
-_Watch out_: `ChoreEditorViewModel` exposes only `onSave` and has no read path,
-so edit mode has nothing to prefill from — it needs the chore's current draft,
-which runs into the same id-into-Hilt problem as item 3.
-_Watch out_: saving and popping in one gesture cancels the nav entry's
-`viewModelScope` mid-write; the write has to outlive the screen. The comment on
-`ChoreEditorViewModel.onSave` says so, and nothing enforces it yet.
-
-**2. The reminder time picker, and the notification permission**
+**1. The reminder time picker, and the notification permission**
 [`SettingsScreen.kt`](app/src/main/kotlin/at/woergoetter/chorely/ui/settings/SettingsScreen.kt)
 shows the stored time and offers no way to set it; `POST_NOTIFICATIONS` is
 declared in the manifest but never requested.
@@ -39,7 +25,7 @@ a default time on first run or keep reminders opt-in — a product decision, not
 an implementation detail, and the only thing standing between a new install and
 a silent app.
 
-**3. The chore detail screen**
+**2. The chore detail screen**
 [`ChoreScreen.kt`](app/src/main/kotlin/at/woergoetter/chorely/ui/chore/ChoreScreen.kt)
 lists history rows as `it::class.simpleName` and wires none of its own
 callbacks: `onEdit`, `onComplete`, `onSkip` and `onArchive` are all unused.
@@ -51,14 +37,14 @@ exists because the screen's shape decides what the ViewModel exposes.
 _Watch out_: a history is not a score. See the Rejected section of
 [BACKLOG.md](BACKLOG.md) before adding a streak or a completion rate.
 
-**4. The archive list**
+**3. The archive list**
 [`ArchiveScreen.kt`](app/src/main/kotlin/at/woergoetter/chorely/ui/archive/ArchiveScreen.kt)
 prints names with no actions. Restore and delete are one call each on the view
 model, which makes this the smallest of the four.
 _Watch out_: delete discards the history and is not undoable, so it wants a
 confirmation; archive, which keeps it, must not.
 
-**5. A test for the reminder path**
+**4. A test for the reminder path**
 There is none.
 [`DigestScheduleTest`](app/src/test/kotlin/at/woergoetter/chorely/reminder/DigestScheduleTest.kt)
 covers `nextDigestDelay` and nothing else, and `app` has no `androidTest`
@@ -75,7 +61,7 @@ compile in CI and never run until that job learns about it.
 ## Housekeeping
 
 **User-facing strings are hardcoded in the placeholder screens**
-"New chore", "Edit chore", "Daily reminder at …", "Reminders off" and the
-detail screen's "Due …" are literals in Kotlin; everything the agenda shows is
-already in `strings.xml`. Fold each one in as its screen is built, rather than
-as a sweep afterwards.
+"Daily reminder at …", "Reminders off" and the detail screen's "Due …" are
+literals in Kotlin; everything the agenda and the editor show is already in
+`strings.xml`. Fold each one in as its screen is built, rather than as a sweep
+afterwards.

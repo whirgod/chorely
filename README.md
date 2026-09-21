@@ -10,9 +10,10 @@ kettle every 3 months — and Chorely works out what is due and reminds you.
 Early development. The domain is implemented and tested; the UI is scaffolding.
 
 - **Done**: the recurrence and occurrence model, catch-up and auto-skip, the
-  Room store, reminder scheduling and the daily digest notification.
-- **Not done**: the chore, editor, archive and settings screens render
-  placeholder text. The agenda screen works.
+  Room store, reminder scheduling and the daily digest notification. The agenda
+  and the chore editor work.
+- **Not done**: the chore detail, archive and settings screens render
+  placeholder text, so the reminder time cannot be set yet.
 
 What is left to build, in the order it wants doing, is in [TODO.md](TODO.md).
 The vocabulary is in [CONTEXT.md](CONTEXT.md), the decisions behind the model
