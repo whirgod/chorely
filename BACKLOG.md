@@ -5,7 +5,8 @@ entry says why, so that picking one up later is a decision rather than a guess.
 
 Decisions about how Chorely *works* live elsewhere: vocabulary in
 [CONTEXT.md](CONTEXT.md), architecture in [docs/adr](docs/adr), invariants in
-[AGENTS.md](AGENTS.md).
+[AGENTS.md](AGENTS.md). Work that is open right now, rather than postponed, is
+in [TODO.md](TODO.md).
 
 ## Deferred
 
