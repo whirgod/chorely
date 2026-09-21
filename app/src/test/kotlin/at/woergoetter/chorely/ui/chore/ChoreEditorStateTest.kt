@@ -88,6 +88,60 @@ class ChoreEditorStateTest {
     }
 
     @Test
+    fun `the largest accepted count saves the period it names, in every unit`() {
+        val max = ChoreEditorState.MAX_COUNT
+        val periods = mapOf(
+            PeriodUnit.Days to Period.ofDays(max),
+            PeriodUnit.Weeks to Period.ofWeeks(max),
+            PeriodUnit.Months to Period.ofMonths(max),
+        )
+
+        periods.forEach { (unit, period) ->
+            val state =
+                ChoreEditorState("Descale", RecurrenceKind.Every, count = "$max", unit = unit)
+
+            assertEquals(ChoreDraft("Descale", Recurrence.Every(period)), state.toDraft())
+        }
+    }
+
+    @Test
+    fun `a count one past the largest accepted one is not saveable, in every unit`() {
+        PeriodUnit.entries.forEach { unit ->
+            val state = ChoreEditorState(
+                "Descale",
+                RecurrenceKind.Every,
+                count = "${ChoreEditorState.MAX_COUNT + 1}",
+                unit = unit,
+            )
+
+            assertNull(state.toDraft())
+        }
+    }
+
+    @Test
+    fun `a count that would overflow the period arithmetic is refused, never thrown`() {
+        // 306,783,379 is where `Period.ofWeeks` multiplying by seven overflows an Int; days
+        // and months take that count without complaint, and are turned down for being past
+        // the bound rather than for arithmetic. Asking the form is what composition does to
+        // decide whether Save is offered, so throwing here would cost the user the form.
+        PeriodUnit.entries.forEach { unit ->
+            val state =
+                ChoreEditorState("Descale", RecurrenceKind.Every, count = "306783379", unit = unit)
+
+            assertNull(state.toDraft())
+            assertFalse(state.isSaveable)
+        }
+    }
+
+    @Test
+    fun `a count too large to be a number at all is not saveable`() {
+        val state =
+            ChoreEditorState(name = "Descale", kind = RecurrenceKind.Every, count = "99999999999")
+
+        assertNull(state.toDraft())
+    }
+
+    @Test
     fun `a count that is not a number is not saveable`() {
         val state = ChoreEditorState(name = "Descale", kind = RecurrenceKind.Every, count = "3 ")
 
@@ -178,6 +232,24 @@ class ChoreEditorStateTest {
         assertEquals(RecurrenceKind.Every, state.kind)
         assertEquals("", state.count)
         assertFalse(state.isSaveable)
+    }
+
+    @Test
+    fun `a stored period larger than the form accepts prefills empty rather than unsaveable`() {
+        val tooLarge = ChoreEditorState.MAX_COUNT + 1
+        val periods = listOf(
+            Period.ofDays(tooLarge),
+            Period.ofWeeks(tooLarge),
+            Period.ofMonths(tooLarge),
+        )
+
+        periods.forEach { period ->
+            val state = ChoreEditorState.of(chore(Recurrence.Every(period)))
+
+            assertEquals(RecurrenceKind.Every, state.kind)
+            assertEquals("", state.count)
+            assertFalse(state.isSaveable)
+        }
     }
 
     @Test

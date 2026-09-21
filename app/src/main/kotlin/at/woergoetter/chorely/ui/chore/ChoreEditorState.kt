@@ -59,11 +59,24 @@ data class ChoreEditorState(
 
     private fun recurrence(): Recurrence? = when (kind) {
         RecurrenceKind.OnWeekdays -> days.ifEmpty { return null }.let(Recurrence::OnWeekdays)
-        RecurrenceKind.Every -> unit.periodOf(count.toIntOrNull()?.takeIf { it > 0 } ?: return null)
-            .let(Recurrence::Every)
+        RecurrenceKind.Every -> count.toIntOrNull()?.takeIf { it in 1..MAX_COUNT }
+            ?.let { Recurrence.Every(unit.periodOf(it)) }
     }
 
     companion object {
+
+        /**
+         * The largest count the form accepts, generous in every unit it is spelled in: 999
+         * days is nearly three years, 999 weeks nineteen, 999 months eighty-three.
+         *
+         * There has to be a bound at all because `Period.ofWeeks` multiplies by seven with
+         * `Math.multiplyExact`, which throws from 306,783,379 weeks upwards. [toDraft] is
+         * what composition asks whether Save should be offered, so that exception would land
+         * on the keystroke that typed the digit and take the half-filled form down with it —
+         * the worst possible place for one. An over-large count is refused the way a zero one
+         * is, by simply not offering Save.
+         */
+        const val MAX_COUNT = 999
 
         /** The form filled in from an existing chore, for edit mode. */
         fun of(chore: Chore): ChoreEditorState {
@@ -75,10 +88,12 @@ data class ChoreEditorState(
                 )
 
                 is Recurrence.Every -> {
-                    // A period that fits no single unit is unreachable from this app, which
-                    // has only ever written what `periodOf` produces. Should one turn up, the
-                    // count is cleared rather than rounded to something the user did not
-                    // choose: Save stays off until they have said what the recurrence is.
+                    // A period the form cannot express — one that fits no single unit, or
+                    // more of one than [MAX_COUNT] — is unreachable from this app, which has
+                    // only ever written what `periodOf` produces within the bound. Should one
+                    // turn up, the count is cleared rather than rounded to something the user
+                    // did not choose or prefilled at a plausible-looking number Save would
+                    // then refuse: Save stays off until they have said what the recurrence is.
                     val (count, unit) = recurrence.period.inOneUnit() ?: return blank.copy(
                         kind = RecurrenceKind.Every,
                         count = "",
@@ -119,15 +134,17 @@ data class ChoreEditorState(
 
 /**
  * The period as a count of one of the units the form offers, or null if it takes more than
- * one. Weeks win over days where both fit, since `Period.ofWeeks` stores its weeks as days
- * and "every 14 days" is not how anyone says a fortnight.
+ * one of them, or more than [ChoreEditorState.MAX_COUNT] of a single one. Weeks win over
+ * days where both fit, since `Period.ofWeeks` stores its weeks as days and "every 14 days"
+ * is not how anyone says a fortnight.
  */
 private fun Period.inOneUnit(): Pair<Int, PeriodUnit>? {
+    val max = ChoreEditorState.MAX_COUNT
     val months = toTotalMonths()
     return when {
-        months in 1..Int.MAX_VALUE.toLong() && days == 0 -> months.toInt() to PeriodUnit.Months
-        months == 0L && days > 0 && days % 7 == 0 -> days / 7 to PeriodUnit.Weeks
-        months == 0L && days > 0 -> days to PeriodUnit.Days
+        months in 1..max.toLong() && days == 0 -> months.toInt() to PeriodUnit.Months
+        months == 0L && days % 7 == 0 && days / 7 in 1..max -> days / 7 to PeriodUnit.Weeks
+        months == 0L && days in 1..max -> days to PeriodUnit.Days
         else -> null
     }
 }

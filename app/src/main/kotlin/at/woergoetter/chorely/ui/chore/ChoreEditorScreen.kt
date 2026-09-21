@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -27,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -91,12 +93,24 @@ fun ChoreEditorScreen(
                 },
                 actions = {
                     val draft = form?.toDraft()
+                    // Popping does not take this entry off screen at once: NavDisplay keeps
+                    // it composed and hit-testable for the length of the exit transition, so
+                    // a second tap a moment after the first still reaches this button. For an
+                    // edit that is a repeated write; for a new chore it is a second chore,
+                    // with a history of its own, that the user then has to go and archive.
+                    var saved by remember { mutableStateOf(false) }
                     TextButton(
                         onClick = {
-                            viewModel.onSave(choreId, draft ?: return@TextButton)
+                            val ready = draft ?: return@TextButton
+                            if (saved) return@TextButton
+                            saved = true
+                            viewModel.onSave(choreId, ready)
                             onDone()
                         },
-                        enabled = draft != null,
+                        // The latch is what makes the save one-shot; saying it here too is
+                        // what keeps a latched screen from showing a button that silently
+                        // does nothing. It only ever closes, so nothing can reopen it.
+                        enabled = draft != null && !saved,
                     ) { Text(stringResource(R.string.save)) }
                 },
             )
@@ -108,6 +122,11 @@ fun ChoreEditorScreen(
             onChange = { form = it },
             modifier = Modifier
                 .padding(padding)
+                // Scaffold hands its insets out but does not mark them as spent, and the
+                // keyboard inset below is measured from the bottom of the window, so it
+                // covers the navigation bar this padding has already made room for.
+                // Consuming here is what subtracts the one from the other.
+                .consumeWindowInsets(padding)
                 // The form is edge-to-edge under an IME that covers the count field on a
                 // short screen; Scaffold's insets do not include the keyboard.
                 .imePadding()
@@ -225,6 +244,13 @@ private fun WeekdayPicker(
     }
 }
 
+/**
+ * How long the count field lets the count get, in digits. Derived from the largest count
+ * [ChoreEditorState] accepts rather than written out here, so the field cannot come to
+ * allow a number the form would then refuse.
+ */
+private val MAX_COUNT_DIGITS = ChoreEditorState.MAX_COUNT.toString().length
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PeriodPicker(
@@ -239,7 +265,13 @@ private fun PeriodPicker(
             value = count,
             // Digits only, so the field cannot hold something the number pad would not have
             // produced — a hardware keyboard and a paste both bypass the keyboard type.
-            onValueChange = { typed -> onCountChange(typed.filter(Char::isDigit)) },
+            // Bounded as well, because a count over [ChoreEditorState.MAX_COUNT] is one the
+            // form will not save: a field that took the extra digit would answer that
+            // keystroke by turning Save off with nothing on screen saying why, so the digit
+            // is refused instead, at the one moment the user can see it being refused.
+            onValueChange = { typed ->
+                onCountChange(typed.filter(Char::isDigit).take(MAX_COUNT_DIGITS))
+            },
             label = { Text(stringResource(R.string.every_count)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

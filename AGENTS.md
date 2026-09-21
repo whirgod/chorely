@@ -86,7 +86,7 @@ The reminder path is where sessions get lost. Facts that are not visible from an
 - Exact alarms require `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM` on API 31+ and are Play-Store-restricted — prefer inexact scheduling unless a chore genuinely needs a precise minute.
 - WorkManager periodic work has a 15-minute minimum interval and is deliberately inexact under Doze; use it for a daily due-sweep, not for firing a reminder at a specific time.
 - The digest is chained one-shot `WorkManager` work, not periodic work, because periodic work cannot be aimed at a time of day; every run schedules the next, so any path that drops a run must call `Reminders.sync()`.
-- `Reminders.sync()` is idempotent and derives everything from Room — call it freely rather than tracking whether the schedule is stale.
+- `Reminders.sync()` is idempotent but not harmless — it re-enqueues with `REPLACE`, discarding a digest that is already due but still pending — so it belongs only where the reminder time or the chain itself changed, and never on a chore write (see the KDoc on `ChoreEditorViewModel.onSave`).
 - `nextDigestDelay` is the only part of scheduling that can be silently *wrong* rather than broken; it is pure and unit-tested against DST, and new scheduling arithmetic belongs there too.
 
 ## Code style
@@ -97,7 +97,7 @@ The reminder path is where sessions get lost. Facts that are not visible from an
 - Due dates are whole local calendar days in the device's *current* timezone, with no correction for travel: store instants, derive local dates on read.
 - `minSdk` is 26 so `java.time` needs no core library desugaring — lowering it means adding desugaring to both Android modules, not just changing the number.
 - `:core:domain` must stay a plain Kotlin JVM module: if something there needs Android, it needs a port instead.
-- A write the user has been told happened goes on the injected `@ApplicationScope` `CoroutineScope`, never `viewModelScope`, which the nav entry cancels the moment the screen is popped — see `ChoreEditorViewModel.onSave`.
+- `viewModelScope` is right for a write whose screen stays put, since leaving should stop the work, but a write followed immediately by a pop needs the injected `@ApplicationScope` `CoroutineScope` or the nav entry cancels it mid-flight: `ChoreEditorViewModel.onSave` is the only call site on it, while `SettingsViewModel.onReminderTimeChanged` has that same act-then-pop shape on `viewModelScope`.
 
 ## Commits and pull requests
 

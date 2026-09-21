@@ -20,7 +20,7 @@
     <string name="every">Every</string>
     <string name="on_days_explainer">Falls due on the days you pick. Doing it late does not move the next one.</string>
     <string name="every_explainer">Falls due again once this long has passed since you last did it.</string>
-    <string name="every_count">Repeat every</string>
+    <string name="every_count">Due every</string>
     <string name="unit_days">Days</string>
     <string name="unit_weeks">Weeks</string>
     <string name="unit_months">Months</string>
