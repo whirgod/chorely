@@ -11,7 +11,8 @@ Early development. The domain is implemented and tested; the UI is scaffolding.
 
 - **Done**: the recurrence and occurrence model, catch-up and auto-skip, the
   Room store, reminder scheduling and the daily digest notification. The agenda
-  and the chore editor work.
+  works, and so does the chore editor — though only for creating a chore, since
+  nothing in the app opens it for an existing one yet.
 - **Not done**: the chore detail, archive and settings screens render
   placeholder text, so the reminder time cannot be set yet.
 

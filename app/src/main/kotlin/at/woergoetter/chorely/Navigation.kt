@@ -17,7 +17,14 @@ import at.woergoetter.chorely.ui.settings.SettingsScreen
 @Composable
 fun ChorelyNavigation() {
     val backStack = rememberNavBackStack(AgendaRoute)
-    fun back() = backStack.removeLastOrNull()
+    // Never the last entry: NavDisplay requires a non-empty back stack and throws on an empty
+    // one, and a screen can ask for that without meaning to, since popping leaves it composed
+    // and tappable for the length of its exit transition. System back cannot get here to be
+    // refused: NavDisplay only intercepts it while the current scene has entries behind it,
+    // and otherwise lets the activity finish, which is how back on the agenda leaves the app.
+    fun back() {
+        if (backStack.size > 1) backStack.removeLastOrNull()
+    }
 
     NavDisplay(
         backStack = backStack,

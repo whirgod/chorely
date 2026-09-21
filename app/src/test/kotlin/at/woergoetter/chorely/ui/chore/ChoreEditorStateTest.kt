@@ -149,6 +149,74 @@ class ChoreEditorStateTest {
     }
 
     @Test
+    fun `an edit that would take the count past the bound is refused, not trimmed to fit`() {
+        // Trimming keeps the first digits of what was typed, which is the wrong end of it:
+        // pasting 1000 over an empty field would leave 100, and both the paste and the Save
+        // that follows would look to the user like they had gone through.
+        val empty = ChoreEditorState(kind = RecurrenceKind.Every, count = "")
+
+        assertEquals("", empty.withCount("1000").count)
+    }
+
+    @Test
+    fun `a digit typed in front of an accepted count is refused, not trimmed to fit`() {
+        val full = ChoreEditorState(kind = RecurrenceKind.Every, count = "999")
+
+        assertEquals("999", full.withCount("1999").count)
+    }
+
+    @Test
+    fun `the field accepts exactly the counts the form would save`() {
+        // Spelled in terms of the bound rather than of how long 999 is, so that lowering
+        // [ChoreEditorState.MAX_COUNT] to something that is not all nines cannot quietly
+        // leave the field admitting counts Save then turns down.
+        val max = ChoreEditorState.MAX_COUNT
+        listOf(1, max - 1, max, max + 1, max * 10).forEach { count ->
+            val typed = ChoreEditorState("Descale", RecurrenceKind.Every, count = "")
+                .withCount("$count")
+
+            assertEquals(count <= max, typed.count == "$count")
+            assertEquals(count <= max, typed.isSaveable)
+        }
+    }
+
+    @Test
+    fun `a count too long to be a number at all is refused`() {
+        val state = ChoreEditorState(kind = RecurrenceKind.Every, count = "3")
+
+        assertEquals("3", state.withCount("99999999999").count)
+    }
+
+    @Test
+    fun `the count can be cleared, since that is how anyone retypes it`() {
+        val state = ChoreEditorState(kind = RecurrenceKind.Every, count = "12")
+
+        assertEquals("", state.withCount("").count)
+    }
+
+    @Test
+    fun `a leading zero is kept, being on the way to a number rather than a wrong one`() {
+        val typed = ChoreEditorState("Descale", RecurrenceKind.Every, count = "").withCount("07")
+
+        assertEquals("07", typed.count)
+        assertEquals(ChoreDraft("Descale", Recurrence.Every(Period.ofWeeks(7))), typed.toDraft())
+    }
+
+    @Test
+    fun `a paste with no digits in it leaves the count alone rather than emptying it`() {
+        val state = ChoreEditorState(kind = RecurrenceKind.Every, count = "12")
+
+        assertEquals("12", state.withCount("every so often").count)
+    }
+
+    @Test
+    fun `a non-digit typed into the count never reaches the field`() {
+        val state = ChoreEditorState(kind = RecurrenceKind.Every, count = "12")
+
+        assertEquals("12", state.withCount("1a2").count)
+    }
+
+    @Test
     fun `each unit saves the period it names`() {
         val states = mapOf(
             PeriodUnit.Days to Period.ofDays(3),

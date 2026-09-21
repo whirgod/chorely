@@ -69,6 +69,25 @@ fun ChoreEditorScreen(
         mutableStateOf<ChoreEditorState?>(null)
     }
 
+    // Popping does not take this entry off screen at once: NavDisplay keeps it composed and
+    // hit-testable for the length of the exit transition, so a second tap a moment after the
+    // first still reaches the top bar. A second Save is a repeated write, or for a new chore
+    // a second chore, with a history of its own, that the user then has to go and archive; a
+    // second Cancel pops the screen underneath this one as well. One latch for both, since
+    // the two buttons do the same thing — leave — and the pair must not fire in turn either.
+    // Both fold it into `enabled`, so a screen on its way out shows them disabled rather than
+    // silently inert. Plain `remember` and not `rememberSaveable`: a form restored after
+    // process death has neither saved nor left, and should offer both again.
+    var leaving by remember { mutableStateOf(false) }
+    // Every way out goes through here, so there is one place the latch can close: the first
+    // caller runs [onWayOut] and leaves, and nothing after it gets this far.
+    fun leave(onWayOut: () -> Unit = {}) {
+        if (leaving) return
+        leaving = true
+        onWayOut()
+        onDone()
+    }
+
     LaunchedEffect(choreId, viewModel) {
         if (form != null) return@LaunchedEffect
         if (choreId == null) {
@@ -77,7 +96,7 @@ fun ChoreEditorScreen(
         }
         // Gone while the editor was being opened — there is nothing here to edit, and a
         // blank form would silently turn the Save into a no-op against a missing chore.
-        val chore = viewModel.load(choreId) ?: return@LaunchedEffect onDone()
+        val chore = viewModel.load(choreId) ?: return@LaunchedEffect leave()
         form = ChoreEditorState.of(chore)
     }
 
@@ -89,28 +108,20 @@ fun ChoreEditorScreen(
                     Text(stringResource(if (choreId == null) R.string.new_chore else R.string.edit_chore))
                 },
                 navigationIcon = {
-                    TextButton(onClick = onDone) { Text(stringResource(R.string.cancel)) }
+                    TextButton(onClick = { leave() }, enabled = !leaving) {
+                        Text(stringResource(R.string.cancel))
+                    }
                 },
                 actions = {
                     val draft = form?.toDraft()
-                    // Popping does not take this entry off screen at once: NavDisplay keeps
-                    // it composed and hit-testable for the length of the exit transition, so
-                    // a second tap a moment after the first still reaches this button. For an
-                    // edit that is a repeated write; for a new chore it is a second chore,
-                    // with a history of its own, that the user then has to go and archive.
-                    var saved by remember { mutableStateOf(false) }
                     TextButton(
                         onClick = {
+                            // Resolved before the latch closes, so a tap with nothing to save
+                            // is not the tap that spends the one exit this screen has.
                             val ready = draft ?: return@TextButton
-                            if (saved) return@TextButton
-                            saved = true
-                            viewModel.onSave(choreId, ready)
-                            onDone()
+                            leave { viewModel.onSave(choreId, ready) }
                         },
-                        // The latch is what makes the save one-shot; saying it here too is
-                        // what keeps a latched screen from showing a button that silently
-                        // does nothing. It only ever closes, so nothing can reopen it.
-                        enabled = draft != null && !saved,
+                        enabled = draft != null && !leaving,
                     ) { Text(stringResource(R.string.save)) }
                 },
             )
@@ -165,7 +176,7 @@ private fun ChoreEditorForm(
             RecurrenceKind.Every -> PeriodPicker(
                 count = state.count,
                 unit = state.unit,
-                onCountChange = { onChange(state.copy(count = it)) },
+                onCountChange = { onChange(state.withCount(it)) },
                 onUnitChange = { onChange(state.copy(unit = it)) },
             )
         }
@@ -244,13 +255,6 @@ private fun WeekdayPicker(
     }
 }
 
-/**
- * How long the count field lets the count get, in digits. Derived from the largest count
- * [ChoreEditorState] accepts rather than written out here, so the field cannot come to
- * allow a number the form would then refuse.
- */
-private val MAX_COUNT_DIGITS = ChoreEditorState.MAX_COUNT.toString().length
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PeriodPicker(
@@ -263,15 +267,7 @@ private fun PeriodPicker(
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
             value = count,
-            // Digits only, so the field cannot hold something the number pad would not have
-            // produced — a hardware keyboard and a paste both bypass the keyboard type.
-            // Bounded as well, because a count over [ChoreEditorState.MAX_COUNT] is one the
-            // form will not save: a field that took the extra digit would answer that
-            // keystroke by turning Save off with nothing on screen saying why, so the digit
-            // is refused instead, at the one moment the user can see it being refused.
-            onValueChange = { typed ->
-                onCountChange(typed.filter(Char::isDigit).take(MAX_COUNT_DIGITS))
-            },
+            onValueChange = onCountChange,
             label = { Text(stringResource(R.string.every_count)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

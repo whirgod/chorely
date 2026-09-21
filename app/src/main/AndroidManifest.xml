@@ -3,7 +3,8 @@
 
     <!-- Runtime permission on API 33+. A silently missing digest is almost always this. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Scheduled work does not survive a reboot; BootReceiver re-derives it from Room. -->
+    <!-- BootReceiver re-derives the schedule from Room; see its KDoc for why that is
+         belt-and-braces rather than necessary. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!--

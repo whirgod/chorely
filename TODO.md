@@ -33,7 +33,10 @@ _Carries_: the assisted-injection step written out on `ChoreViewModel.detail` �
 `@HiltViewModel(assistedFactory = ...)` plus `hiltViewModel(creationCallback =
 ...)` at the nav entry — after which the chore id reaches the constructor and
 `detail` becomes a `StateFlow` like its peers. It was left until the screen
-exists because the screen's shape decides what the ViewModel exposes.
+exists because the screen's shape decides what the ViewModel exposes. Wiring
+`onEdit` also makes the editor's edit mode reachable for the first time:
+`ChoreEditorRoute(choreId)` has no other entry, so the prefill path is
+exercised by unit tests alone until this screen calls it.
 _Watch out_: a history is not a score. See the Rejected section of
 [BACKLOG.md](BACKLOG.md) before adding a streak or a completion rate.
 
@@ -54,6 +57,13 @@ _Owed_: the boot path, which AGENTS.md requires a test for — `BootReceiver` to
 `ReminderSyncWorker` to `WorkManagerReminders` — and `DailyDigestWorker`'s
 post-then-`markSeen` ordering, which is the guard that stops an unseen
 occurrence lapsing.
+_Watch out_: `DailyDigestWorker` re-syncs only where `doWork` returns, so a
+throw from `chores.due()` or `notifier.post()` drops the chain for good — a
+reboot is then the only thing that rebuilds it, since the reminder-time change
+that also would needs the picker in item 1. Long-standing rather than new: the
+chore save that once called `Reminders.sync()` was never reachable from a
+placeholder editor. Left unfixed because the fix is precisely what the
+`TestDriver` test above has to assert.
 _Moves with it_: `ci.yml`'s `instrumented-tests` job runs only
 `:core:data:connectedDebugAndroidTest`, so an app instrumented test would
 compile in CI and never run until that job learns about it.

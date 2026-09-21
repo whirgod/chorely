@@ -57,6 +57,30 @@ data class ChoreEditorState(
     fun withDay(day: DayOfWeek, selected: Boolean): ChoreEditorState =
         copy(days = if (selected) days + day else days - day)
 
+    /**
+     * The form with what has just been typed into the count field as its count, or unchanged
+     * where that is not something the field may come to hold.
+     *
+     * An edit past [MAX_COUNT] is refused outright rather than trimmed to fit: trimming
+     * answers a pasted `1000` with `100`, and a `1` typed in front of `999` with `199`,
+     * either of which is a recurrence nobody chose and Save would go on to write. Refusing
+     * leaves the field as it was, at the one moment the user can see the edit not take, and
+     * being a bound rather than a digit count it stays exactly the one [toDraft] saves by.
+     *
+     * Non-digits are dropped, since a hardware keyboard and a paste both get past the number
+     * pad, so a paste of nothing but letters leaves the field alone rather than emptying it.
+     * Emptying it is the user's to do and has to keep working — it is how anyone retypes a
+     * number — as do the leading zeros they pass through on the way.
+     */
+    fun withCount(typed: String): ChoreEditorState {
+        if (typed.isEmpty()) return copy(count = "")
+        val digits = typed.filter(Char::isDigit)
+        // A count of more digits than an Int holds is past the bound as well; reading the
+        // number is what turns both of those into the same refusal, and neither into a throw.
+        val value = digits.toIntOrNull() ?: return this
+        return if (value <= MAX_COUNT) copy(count = digits) else this
+    }
+
     private fun recurrence(): Recurrence? = when (kind) {
         RecurrenceKind.OnWeekdays -> days.ifEmpty { return null }.let(Recurrence::OnWeekdays)
         RecurrenceKind.Every -> count.toIntOrNull()?.takeIf { it in 1..MAX_COUNT }

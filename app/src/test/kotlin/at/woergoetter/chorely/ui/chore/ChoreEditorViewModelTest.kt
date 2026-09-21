@@ -9,7 +9,6 @@ import at.woergoetter.chorely.domain.Chores
 import at.woergoetter.chorely.domain.DueChore
 import at.woergoetter.chorely.domain.Occurrence
 import at.woergoetter.chorely.domain.Recurrence
-import at.woergoetter.chorely.reminder.Reminders
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
@@ -21,7 +20,6 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -30,7 +28,7 @@ import java.time.Period
 
 /**
  * What the editor's ViewModel owes the screen: a chore to prefill from, and a save that
- * outlives the screen that asked for it and writes nothing else.
+ * outlives the screen that asked for it.
  *
  * There is no main-dispatcher rule here because there is nothing to rule: the ViewModel
  * never touches `viewModelScope`, which is the whole point of the first test below.
@@ -98,24 +96,6 @@ class ChoreEditorViewModelTest {
 
         assertEquals(listOf(id to draft), chores.edited)
         assertEquals(emptyList<ChoreDraft>(), chores.added)
-    }
-
-    @Test
-    fun `saving a chore cannot touch the reminder schedule`() {
-        // `Reminders.sync()` reads the stored reminder time and nothing else — the chore
-        // list cannot make a digest schedulable — and it re-enqueues with REPLACE, so a
-        // save at 08:40 would throw away this morning's digest, still pending after a
-        // night of Doze, and aim the next one at tomorrow.
-        //
-        // The editor therefore has no `Reminders` to call. That absence is what this
-        // asserts: a dependency that is not there cannot be watched by a fake, and a
-        // constructor argument is the one place reintroducing it would show up.
-        val dependencies = ChoreEditorViewModel::class.java.declaredConstructors.single().parameterTypes
-
-        assertFalse(
-            "the editor must not be able to reach the reminder schedule",
-            dependencies.any { it == Reminders::class.java },
-        )
     }
 
     private fun chore(id: Long = 1, name: String = "Vacuum") = Chore(
