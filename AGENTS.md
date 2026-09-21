@@ -6,7 +6,7 @@ Chorely is an offline-only Android app for recurring home cleaning chores: the u
 
 Stack: Kotlin, Jetpack Compose, Navigation 3, Room, Hilt, WorkManager. Modules are `:app`, `:core:data` and `:core:domain`; see [docs/adr/0003](docs/adr/0003-three-modules-with-a-pure-domain.md) for why, and read it before adding a module or moving code between them.
 
-The UI is scaffolding: `AgendaScreen` works, the chore/editor/archive/settings screens are marked `TODO` and render placeholder text. Everything beneath them is real.
+The UI is scaffolding: `AgendaScreen` works, the chore/editor/archive/settings screens are marked `TODO` and render placeholder text. Everything beneath them is real; the open work and the traps in each piece of it are in [TODO.md](TODO.md).
 
 ## Setup
 

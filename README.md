@@ -14,6 +14,7 @@ Early development. The domain is implemented and tested; the UI is scaffolding.
 - **Not done**: the chore, editor, archive and settings screens render
   placeholder text. The agenda screen works.
 
+What is left to build, in the order it wants doing, is in [TODO.md](TODO.md).
 The vocabulary is in [CONTEXT.md](CONTEXT.md), the decisions behind the model
 and the module layout are in [docs/adr](docs/adr).
 
