@@ -6,7 +6,6 @@ import androidx.work.WorkManager
 import at.woergoetter.chorely.domain.ReminderSettings
 import kotlinx.coroutines.flow.first
 import java.time.Clock
-import java.time.LocalTime
 import javax.inject.Inject
 import javax.inject.Singleton
 

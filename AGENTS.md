@@ -6,7 +6,7 @@ Chorely is an offline-only Android app for recurring home cleaning chores: the u
 
 Stack: Kotlin, Jetpack Compose, Navigation 3, Room, Hilt, WorkManager. Modules are `:app`, `:core:data` and `:core:domain`; see [docs/adr/0003](docs/adr/0003-three-modules-with-a-pure-domain.md) for why, and read it before adding a module or moving code between them.
 
-The UI is scaffolding: `AgendaScreen` works, the chore/editor/archive/settings screens are marked `TODO` and render placeholder text. Everything beneath them is real; the open work and the traps in each piece of it are in [TODO.md](TODO.md).
+The UI is scaffolding: `AgendaScreen` and `ChoreEditorScreen` are built, the chore/archive/settings screens are marked `TODO` and render placeholder text. Everything beneath them is real; the open work and the traps in each piece of it are in [TODO.md](TODO.md).
 
 ## Setup
 
@@ -86,7 +86,7 @@ The reminder path is where sessions get lost. Facts that are not visible from an
 - Exact alarms require `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM` on API 31+ and are Play-Store-restricted — prefer inexact scheduling unless a chore genuinely needs a precise minute.
 - WorkManager periodic work has a 15-minute minimum interval and is deliberately inexact under Doze; use it for a daily due-sweep, not for firing a reminder at a specific time.
 - The digest is chained one-shot `WorkManager` work, not periodic work, because periodic work cannot be aimed at a time of day; every run schedules the next, so any path that drops a run must call `Reminders.sync()`.
-- `Reminders.sync()` is idempotent and derives everything from Room — call it freely rather than tracking whether the schedule is stale.
+- `Reminders.sync()` is idempotent but not free — it re-enqueues with `REPLACE`, discarding a digest that is already due but still pending — so a chore write must not call it (see the KDoc on `ChoreEditorViewModel.onSave`), and `BootReceiver` does call it even though WorkManager, unlike the alarms above, restores its own pending work across a reboot.
 - `nextDigestDelay` is the only part of scheduling that can be silently *wrong* rather than broken; it is pure and unit-tested against DST, and new scheduling arithmetic belongs there too.
 
 ## Code style
@@ -97,6 +97,7 @@ The reminder path is where sessions get lost. Facts that are not visible from an
 - Due dates are whole local calendar days in the device's *current* timezone, with no correction for travel: store instants, derive local dates on read.
 - `minSdk` is 26 so `java.time` needs no core library desugaring — lowering it means adding desugaring to both Android modules, not just changing the number.
 - `:core:domain` must stay a plain Kotlin JVM module: if something there needs Android, it needs a port instead.
+- A write the user has been told is done must outlive its screen and goes on the injected `@ApplicationScope` `CoroutineScope` (only `ChoreEditorViewModel.onSave` so far); work that merely feeds a screen stays on `viewModelScope`, which a pop cancels.
 
 ## Commits and pull requests
 
