@@ -70,6 +70,26 @@ compile in CI and never run until that job learns about it.
 
 ## Housekeeping
 
+**The editor's leave latch does not cover the system back gesture**
+`leave()` in
+[`ChoreEditorScreen.kt`](app/src/main/kotlin/at/woergoetter/chorely/ui/chore/ChoreEditorScreen.kt)
+closes the latch for Cancel and Save, but `NavDisplay`'s `onBack` calls the back
+stack's `back()` directly, so a gesture never goes through it. On
+`[Agenda, Chore, Editor]`: tap Cancel, then swipe back while the editor is still
+animating out, and the chore detail screen is popped as well — one tap plus one
+gesture costs two screens. The rarer order is worse in kind: swipe back to
+abandon a half-filled form, let a finger land on the still-visible Save, and the
+chore is created after the user abandoned it.
+_Why it is still here_: the latch would have to notice a pop it did not
+originate, which is a change to the navigation layer rather than a correction
+inside this screen. `back()` already refuses to empty the stack, so the cheapest
+variant of this cannot crash — it only navigates wrongly.
+_Moves with it_: a test. This one is only reachable through a real transition,
+so unlike the guards in
+[`NavigationTest`](app/src/test/kotlin/at/woergoetter/chorely/NavigationTest.kt)
+it needs a Compose UI test, and therefore the `androidTest` source set and the
+CI job that item 4 above is already waiting on.
+
 **User-facing strings are hardcoded in the placeholder screens**
 "Daily reminder at …", "Reminders off" and the detail screen's "Due …" are
 literals in Kotlin; everything the agenda and the editor show is already in
