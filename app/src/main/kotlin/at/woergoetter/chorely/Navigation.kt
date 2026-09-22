@@ -3,6 +3,7 @@ package at.woergoetter.chorely
 import androidx.compose.runtime.Composable
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
@@ -26,6 +27,17 @@ fun ChorelyNavigation() {
         if (backStack.size > 1) backStack.removeLastOrNull()
     }
 
+    // The same point about a transition, on the way in: the screen that pushed is still
+    // composed and tappable while the new one arrives, so a second tap on the button that
+    // opened it pushes an equal NavKey again. Nav3 keys an entry's saved state and its
+    // ViewModelStore by the key, so two equal keys are one slot shared by two entries — and
+    // popping one of them leaves the other on screen holding a spent one-shot latch, with
+    // both its buttons disabled. Equal keys adjacent on the stack are never wanted, so
+    // refusing the push is the whole fix.
+    fun go(key: NavKey) {
+        if (backStack.lastOrNull() != key) backStack.add(key)
+    }
+
     NavDisplay(
         backStack = backStack,
         onBack = { back() },
@@ -41,17 +53,17 @@ fun ChorelyNavigation() {
             entry<AgendaRoute> {
                 AgendaScreen(
                     viewModel = hiltViewModel(),
-                    onOpenChore = { backStack.add(ChoreRoute(it.value)) },
-                    onAddChore = { backStack.add(ChoreEditorRoute()) },
-                    onOpenArchive = { backStack.add(ArchiveRoute) },
-                    onOpenSettings = { backStack.add(SettingsRoute) },
+                    onOpenChore = { go(ChoreRoute(it.value)) },
+                    onAddChore = { go(ChoreEditorRoute()) },
+                    onOpenArchive = { go(ArchiveRoute) },
+                    onOpenSettings = { go(SettingsRoute) },
                 )
             }
             entry<ChoreRoute> { route ->
                 ChoreScreen(
                     choreId = ChoreId(route.choreId),
                     viewModel = hiltViewModel(),
-                    onEdit = { backStack.add(ChoreEditorRoute(route.choreId)) },
+                    onEdit = { go(ChoreEditorRoute(route.choreId)) },
                     onBack = { back() },
                 )
             }
