@@ -172,7 +172,7 @@ private class FakeDetailChores : Chores {
 
     override suspend fun due(): DueToday = unused()
 
-    override suspend fun markSeen(through: LocalDate?) = unused()
+    override suspend fun markSeen(through: LocalDate) = unused()
 
     override suspend fun add(draft: ChoreDraft): ChoreId = unused()
 

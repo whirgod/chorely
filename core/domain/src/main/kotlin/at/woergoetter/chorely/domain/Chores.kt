@@ -43,12 +43,16 @@ interface Chores {
      * auto-skips that fact makes real. Called when the overview is displayed and after the
      * daily digest has actually been posted — never merely because a background job ran.
      *
-     * [through] defaults to today, which is right for the overview: it shows every active
-     * chore's outstanding occurrence, whatever day it is. The digest shows only what was due
-     * on the day [due] worked out, and passes that day — a midnight or a zone change between
-     * the two calls must not record the next day as seen. Never moves backwards.
+     * [through] is the [Agenda.day] or [DueToday.day] of what was shown, not whatever day it
+     * is by the time this runs: a midnight or a zone change between the read and this call
+     * must not record the next day as seen. Never moves backwards, and never further than a
+     * day past today — as far as a move west between the two calls can legitimately put it.
+     *
+     * What this cannot express: each chore shows only its outstanding occurrence, so one
+     * whose outstanding occurrence is older than [through] has a later one counted as seen
+     * that was never on screen. See TODO.md.
      */
-    suspend fun markSeen(through: LocalDate? = null)
+    suspend fun markSeen(through: LocalDate)
 
     suspend fun add(draft: ChoreDraft): ChoreId
 

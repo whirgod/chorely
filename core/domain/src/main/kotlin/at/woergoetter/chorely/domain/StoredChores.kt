@@ -33,6 +33,7 @@ class StoredChores(
             .map { it.dueChore(book.seenThrough, clock) }
             .sortedWith(byDueDateThenName)
         Agenda(
+            day = today,
             overdue = due.filter { it.dueDate < today },
             today = due.filter { it.dueDate == today },
             upcoming = due.filter { it.dueDate > today },
@@ -69,16 +70,18 @@ class StoredChores(
         return DueToday(today, chores)
     }
 
-    override suspend fun markSeen(through: LocalDate?): Unit = store.transact { edit ->
+    override suspend fun markSeen(through: LocalDate): Unit = store.transact { edit ->
         val clock = pinned()
         val book = edit.book()
         book.active().forEach { record ->
             val displaced = record.catchUp(book.seenThrough, clock).displaced
             if (displaced.isNotEmpty()) edit.append(record.chore.id, displaced)
         }
-        // Never backwards: a move to a zone further west makes "today" earlier, and the
-        // record of what the user has been shown must not un-show anything.
-        val shown = through ?: LocalDate.now(clock)
+        // Never backwards — a move west makes "today" earlier, and a digest's day can be older
+        // than one the overview has already marked — since the record of what the user has
+        // been shown must not un-show anything. Never past tomorrow either: nothing on screen
+        // can be further ahead, and a date beyond that would lapse occurrences no one saw.
+        val shown = minOf(through, LocalDate.now(clock).plusDays(1))
         edit.markSeen(book.seenThrough?.let { maxOf(it, shown) } ?: shown)
     }
 

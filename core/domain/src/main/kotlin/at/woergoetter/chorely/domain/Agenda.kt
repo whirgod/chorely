@@ -11,8 +11,8 @@ data class DueChore(
 }
 
 /**
- * What the daily digest lists, and the [day] it was worked out for — the day a digest showing
- * it has shown the user through, which is what [Chores.markSeen] is then told.
+ * What the daily digest lists — overdue and due on [day] — and the day it was worked out for,
+ * which is what [Chores.markSeen] is told once the digest has been posted.
  */
 data class DueToday(
     val day: LocalDate,
@@ -24,6 +24,8 @@ data class DueToday(
  * date, then by name, so the UI never has to sort and two screens cannot disagree.
  */
 data class Agenda(
+    /** The day this was worked out for, which [Chores.markSeen] is told once it is on screen. */
+    val day: LocalDate,
     val overdue: List<DueChore> = emptyList(),
     val today: List<DueChore> = emptyList(),
     val upcoming: List<DueChore> = emptyList(),

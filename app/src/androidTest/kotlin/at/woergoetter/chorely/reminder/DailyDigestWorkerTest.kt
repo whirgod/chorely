@@ -30,7 +30,8 @@ import java.time.Period
 /**
  * The digest worker's two obligations, run through WorkManager as the app runs it:
  *
- * - `markSeen()` only after a notification was actually posted, the guard that stops an
+ * - `markSeen()` only after a notification was actually posted, and through the day the list
+ *   was worked out for, the guard that stops an
  *   occurrence lapsing before the user was told about it (docs/adr/0002).
  * - The chain never ends: a run that worked schedules its successor, and one that failed is
  *   retried, since the chain is one-shot work and a run that does neither ends reminders

@@ -111,7 +111,7 @@ class FakeChores @Inject constructor(private val events: Events) : Chores {
         return DueToday(today, dueResult())
     }
 
-    override suspend fun markSeen(through: LocalDate?) {
+    override suspend fun markSeen(through: LocalDate) {
         events.record("markSeen")
         seenThrough = through
     }

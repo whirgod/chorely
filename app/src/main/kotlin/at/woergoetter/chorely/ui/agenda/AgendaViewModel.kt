@@ -35,7 +35,12 @@ class AgendaViewModel @Inject constructor(
      * When that moment has arrived is the caller's to judge, because "the first emission is
      * on screen" is a fact about the UI and not a rule about due dates.
      */
-    fun onShown() = viewModelScope.launch { chores.markSeen() }
+    fun onShown() {
+        // Through the day the agenda on screen was worked out for: resumed after midnight
+        // with yesterday's still showing, the new day has not been shown.
+        val day = agenda.value?.day ?: return
+        viewModelScope.launch { chores.markSeen(through = day) }
+    }
 
     fun onComplete(id: ChoreId) = viewModelScope.launch { chores.complete(id) }
 
