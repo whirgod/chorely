@@ -10,6 +10,7 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkQuery
 import androidx.work.testing.TestListenableWorkerBuilder
+import androidx.work.testing.WorkManagerTestInitHelper
 import dagger.Lazy
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -42,6 +43,8 @@ class BootPathTest {
     @Inject lateinit var settings: FakeReminderSettings
 
     @Inject lateinit var events: Events
+
+    @Inject lateinit var chores: FakeChores
 
     @Inject lateinit var clock: Clock
 
@@ -127,14 +130,51 @@ class BootPathTest {
     }
 
     @Test
-    fun aTimezoneChangeReaimsThePendingDigest() = runBlocking {
+    fun aTimezoneOrClockChangeResyncs() = runBlocking {
+        // Only that the sync happens: a test cannot move the device's zone to watch the digest
+        // re-aim, and nextDigestDelay's arithmetic is unit-tested on its own.
         settings.time.value = LocalTime.now(clock).plusHours(2).withSecond(0).withNano(0)
 
-        BootReceiver().onReceive(context, Intent(Intent.ACTION_TIMEZONE_CHANGED))
-
+        for (action in listOf(Intent.ACTION_TIMEZONE_CHANGED, Intent.ACTION_TIME_CHANGED)) {
+            val before = events.snapshot().size
+            BootReceiver().onReceive(context, Intent(action))
+            eventually { events.snapshot().size > before }
+            assertEquals("$action", listOf("sync"), events.snapshot().drop(before))
+        }
         workManager.awaitPendingDigest()
-        eventually { events.snapshot().isNotEmpty() }
-        assertEquals(listOf("sync"), events.snapshot())
+        Unit
+    }
+
+    @Test
+    fun aDigestPastItsTimeButNotYetRunIsRunNotSkippedToTomorrow() = runBlocking {
+        // Aimed two seconds out, and never released by the test driver: past its time and
+        // still pending, as a digest Doze has held back is.
+        settings.time.value = LocalTime.now(clock).plusSeconds(2)
+        reminders.get().sync()
+        val dueAt = workManager.awaitPendingDigest().nextScheduleTimeMillis
+        eventually { System.currentTimeMillis() > dueAt }
+
+        // A network time correction, say.
+        BootReceiver().onReceive(context, Intent(Intent.ACTION_TIME_CHANGED))
+
+        // It runs now rather than being re-aimed at tomorrow: due() is its first call.
+        eventually { "due" in events.snapshot() }
+    }
+
+    @Test
+    fun aDigestWaitingOutARetryIsRunNotSkippedToTomorrow() = runBlocking {
+        settings.time.value = LocalTime.now(clock).plusHours(2).withSecond(0).withNano(0)
+        chores.dueResult = { error("database unavailable") }
+        reminders.get().sync()
+        val scheduled = workManager.awaitPendingDigest()
+        WorkManagerTestInitHelper.getTestDriver(context)!!.setInitialDelayMet(scheduled.id)
+        workManager.awaitPendingDigest { it.id == scheduled.id && it.runAttemptCount == 1 }
+        chores.dueResult = { emptyList() }
+        val attempts = events.snapshot().count { it == "due" }
+
+        BootReceiver().onReceive(context, Intent(Intent.ACTION_BOOT_COMPLETED))
+
+        eventually { events.snapshot().count { it == "due" } > attempts }
     }
 
     @Test

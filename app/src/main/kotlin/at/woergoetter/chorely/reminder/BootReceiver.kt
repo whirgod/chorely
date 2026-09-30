@@ -20,12 +20,14 @@ import androidx.work.WorkManager
  * Derives the schedule again from Room rather than restoring anything, and delegates to a
  * worker because a receiver has no business doing database I/O in its ten-second window.
  *
- * It is belt-and-braces, not load-bearing: the digest is WorkManager work, and WorkManager
- * persists its own requests and reschedules them itself after a reboot — nothing here uses
- * AlarmManager, which is the thing that really does lose its schedule. So this costs a
- * `sync()`, and `sync()` re-enqueues with REPLACE: a reboot after the reminder time, with
- * the digest restored but not yet run, discards it. Whether the receiver earns that is an
- * open question; see the sync bullet in AGENTS.md.
+ * After a reboot it is belt-and-braces: WorkManager persists its own requests and reschedules
+ * them itself, and nothing here uses AlarmManager, the thing that really loses its schedule.
+ * It costs nothing there either, since `sync()` runs a digest that is already owed rather than
+ * re-aiming it.
+ *
+ * One sync at a time, with KEEP: a zone change arriving while an earlier sync is still pending
+ * — seconds after a boot, or during a retry's backoff — is dropped, and that sync may already
+ * have read the old zone. Rare enough to accept; the next day's digest re-aims itself.
  *
  * Not a Hilt entry point: it injects nothing, and WorkManager is reached through its own
  * singleton rather than through the graph.
@@ -34,7 +36,7 @@ class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action !in RESYNC_ON) return
-        // Unique with KEEP, so a second boot while one sync is still retrying adds nothing.
+        // Unique with KEEP, so a second trigger while one sync is still retrying adds nothing.
         WorkManager.getInstance(context).enqueueUniqueWork(
             ReminderSyncWorker.NAME,
             ExistingWorkPolicy.KEEP,

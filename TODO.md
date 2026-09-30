@@ -57,11 +57,6 @@ retries a failed run as a whole, up to five times, five minutes apart.
   own write failing is never seen, let alone retried. Awaiting it inside the
   digest worker suspends on the REPLACE that cancels that very worker, so the
   `DailyDigestWorkerTest` event assertions need rethinking with it.
-- A reboot while a failed digest waits out its backoff loses today's digest:
-  the boot sync REPLACEs the pending retry and aims at tomorrow. The same loss
-  `BootReceiver`'s KDoc already names for a reboot after the reminder time, made
-  likelier by the retry window; keeping a digest already aimed at today would
-  close both.
 
 **A stale editor can still save over an archived chore**
 The editor refuses to open an archived chore, but checks only when it opens:

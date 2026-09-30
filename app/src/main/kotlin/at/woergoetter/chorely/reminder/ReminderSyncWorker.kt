@@ -9,7 +9,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
 
-/** Re-derives the reminder schedule from the database. Used after a reboot. */
+/** Re-derives the reminder schedule from the database, for [BootReceiver]. */
 @HiltWorker
 class ReminderSyncWorker @AssistedInject constructor(
     @Assisted context: Context,
@@ -19,7 +19,7 @@ class ReminderSyncWorker @AssistedInject constructor(
 
     /**
      * Retried on a failure, with the digest's backoff and bound (see [BootReceiver]): a database
-     * briefly unavailable at boot is not fatal, and an attempt that succeeds hours late would
+     * briefly unavailable is not fatal, and an attempt that succeeds hours late would
      * replace a digest pending for today.
      */
     override suspend fun doWork(): Result = try {
@@ -29,10 +29,10 @@ class ReminderSyncWorker @AssistedInject constructor(
         throw stopped
     } catch (failure: Exception) {
         if (runAttemptCount + 1 < DailyDigestWorker.MAX_ATTEMPTS) {
-            Log.w(TAG, "sync after boot failed, retrying", failure)
+            Log.w(TAG, "reminder sync failed, retrying", failure)
             Result.retry()
         } else {
-            Log.e(TAG, "sync after boot failed ${DailyDigestWorker.MAX_ATTEMPTS} times", failure)
+            Log.e(TAG, "reminder sync failed ${DailyDigestWorker.MAX_ATTEMPTS} times", failure)
             Result.failure()
         }
     }

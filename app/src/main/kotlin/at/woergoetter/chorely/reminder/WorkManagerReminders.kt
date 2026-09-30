@@ -3,10 +3,12 @@ package at.woergoetter.chorely.reminder
 import androidx.work.BackoffPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import at.woergoetter.chorely.domain.ReminderSettings
 import kotlinx.coroutines.flow.first
 import java.time.Clock
+import java.time.Duration
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -32,13 +34,21 @@ class WorkManagerReminders @Inject constructor(
             workManager.cancelUniqueWork(DailyDigestWorker.NAME)
             return
         }
+        // A digest already owed runs now rather than being re-aimed at tomorrow: one past its
+        // time but held back by Doze, or one waiting out a retry's backoff. A clock correction,
+        // a zone change or a reboot arriving then would otherwise throw today's away. Not the
+        // running digest's own closing sync, which sees itself RUNNING, not ENQUEUED.
+        val pending = workManager.getWorkInfosForUniqueWorkFlow(DailyDigestWorker.NAME).first()
+            .singleOrNull { it.state == WorkInfo.State.ENQUEUED }
+        val owed = pending != null &&
+            (pending.runAttemptCount > 0 || pending.nextScheduleTimeMillis <= clock.millis())
         workManager.enqueueUniqueWork(
             DailyDigestWorker.NAME,
             // REPLACE, so changing the reminder time moves the pending digest rather than
             // leaving yesterday's request to fire at the old time.
             ExistingWorkPolicy.REPLACE,
             OneTimeWorkRequestBuilder<DailyDigestWorker>()
-                .setInitialDelay(nextDigestDelay(time, clock))
+                .setInitialDelay(if (owed) Duration.ZERO else nextDigestDelay(time, clock))
                 .setBackoffCriteria(BackoffPolicy.LINEAR, DailyDigestWorker.RETRY_BACKOFF)
                 .addTag(DailyDigestWorker.NAME)
                 .build(),

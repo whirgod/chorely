@@ -1,11 +1,9 @@
 package at.woergoetter.chorely.data
 
 import org.junit.After
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import java.time.LocalDate
-import java.time.ZoneId
 import java.util.TimeZone
 
 /**
