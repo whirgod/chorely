@@ -36,9 +36,9 @@ data class CatchUp(
  *   skip it is measured from the due date instead, so tapping "skip" at 2am rather than 2pm
  *   cannot change when the chore comes back.
  * - **Auto-skip.** A calendar-anchored occurrence is displaced only once its successor has
- *   actually fallen due, and only if the user has already been shown it ([seenThrough]).
- *   Without that second guard, a daily chore's occurrence could appear and vanish unseen,
- *   recorded as a lapse the user never had a chance to act on.
+ *   actually fallen due, and only if it fell due on or before [seenThrough], the last day
+ *   the user was shown what was due. Without that second guard, occurrences would lapse
+ *   while nothing was being shown at all. It is per day, not per occurrence: see ADR 0002.
  * - **Completion-anchored chores never auto-skip**, because nothing arrives to displace an
  *   outstanding occurrence; it simply waits, however long that takes.
  *

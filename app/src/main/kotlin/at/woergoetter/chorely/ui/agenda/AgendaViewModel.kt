@@ -32,8 +32,9 @@ class AgendaViewModel @Inject constructor(
     /**
      * Marks each agenda seen, through its own day, as it reaches the screen — to be run while
      * the overview is resumed, and cancelled when it is not. This is the other half of the
-     * auto-skip guard: an occurrence counts as seen if the user was shown it here or by the
-     * daily digest, and only a seen occurrence may be recorded as a lapse.
+     * auto-skip guard: a day counts as seen once this screen or the daily digest showed what
+     * was due that day, and only an occurrence due on or before a seen day may be recorded as
+     * a lapse.
      *
      * Every emission and not just the first: resumed on a new day after the store has been let
      * go, the screen first shows the agenda it was left with — yesterday's, still held in

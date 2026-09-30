@@ -12,8 +12,8 @@ data class ChoreRecord(
 /**
  * Everything catch-up needs in order to run, read as one consistent snapshot.
  *
- * [seenThrough] is global rather than per-chore because "the user has been shown what is
- * due" is a fact about the user, not about any one chore.
+ * [seenThrough] is global rather than per-chore: the guarantee it carries is per day, not
+ * per occurrence, as accepted in ADR 0002.
  */
 data class ChoreBook(
     val chores: List<ChoreRecord> = emptyList(),
