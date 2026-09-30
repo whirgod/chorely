@@ -366,6 +366,37 @@ class StoredChoresTest {
         assertEquals(listOf(date("2026-09-19")), chores.detail(id).first()!!.history.map { it.dueDate })
     }
 
+    @Test
+    fun `every operation reads the zone once, so a zone change cannot land between two reads`() = runTest {
+        val counting = ZoneCountingClock(clockAt(date("2026-09-16")))
+        val chores: Chores = StoredChores(store, counting)
+        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
+
+        val operations: List<Pair<String, suspend () -> Unit>> = listOf(
+            "agenda" to { chores.agenda().first() },
+            "detail" to { chores.detail(id).first() },
+            "due" to { chores.due() },
+            "markSeen" to { chores.markSeen() },
+            "complete" to { chores.complete(id) },
+            "edit" to { chores.edit(id, ChoreDraft("Vacuum", weekly(SUNDAY))) },
+            "archive" to { chores.archive(id) },
+            "restore" to { chores.restore(id) },
+        )
+        for ((name, operation) in operations) {
+            counting.reads = 0
+            operation()
+            assertEquals(name, 1, counting.reads)
+        }
+    }
+
+    /** Counts how often its zone is asked for; the pinned copy it hands out counts nothing. */
+    private class ZoneCountingClock(private val base: Clock) : Clock() {
+        var reads = 0
+        override fun getZone(): java.time.ZoneId = base.zone.also { reads++ }
+        override fun instant() = base.instant()
+        override fun withZone(zone: java.time.ZoneId): Clock = base.withZone(zone)
+    }
+
     private fun StoredChores(store: ChoreStore, clock: () -> Clock): Chores =
         StoredChores(store, MutableClock(clock))
 
