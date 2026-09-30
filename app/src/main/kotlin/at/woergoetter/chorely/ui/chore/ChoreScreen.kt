@@ -74,13 +74,25 @@ fun ChoreScreen(
     // editor and returns with a fresh latch, but an editor popped mid-transition hands the
     // screen back still composed and still latched. Nav3 resumes an entry only once it is on
     // top and settled, so a resume is the moment the screen is fully back and may be left again.
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { leaving = false }
+    // A chore that went while the editor was up is gone by the time the editor hands the
+    // screen back, and the effect below, keyed on a state that has not changed, will not
+    // run again to notice.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        leaving = false
+        if (viewModel.state.value is ChoreState.Gone) leave(onBack)
+    }
 
     LaunchedEffect(state) {
         if (state is ChoreState.Gone) leave(onBack)
     }
 
-    val detail = (state as? ChoreState.Shown)?.detail
+    // The last chore shown, kept on screen once it goes: archiving pops this screen in the
+    // same tap, and the write lands while it is still sliding out, so without this it would
+    // leave as a blank page. Only ever shown behind a closed latch, so nothing acts on it.
+    var lastShown by remember { mutableStateOf<ChoreDetail?>(null) }
+    (state as? ChoreState.Shown)?.detail?.let { lastShown = it }
+    val detail = lastShown
+    val canAct = state is ChoreState.Shown && !leaving
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -95,7 +107,7 @@ fun ChoreScreen(
                     }
                 },
                 actions = {
-                    TextButton(onClick = { leave(onEdit) }, enabled = detail != null && !leaving) {
+                    TextButton(onClick = { leave(onEdit) }, enabled = canAct) {
                         Text(stringResource(R.string.edit))
                     }
                     // No confirmation, unlike delete: archiving keeps the history, and the
@@ -107,7 +119,7 @@ fun ChoreScreen(
                                 onBack()
                             }
                         },
-                        enabled = detail != null && !leaving,
+                        enabled = canAct,
                     ) { Text(stringResource(R.string.archive_chore)) }
                 },
             )
@@ -118,6 +130,7 @@ fun ChoreScreen(
             detail = shown,
             onComplete = viewModel::onComplete,
             onSkip = viewModel::onSkip,
+            enabled = canAct,
             modifier = Modifier.padding(padding),
         )
     }
@@ -128,6 +141,7 @@ private fun ChoreDetailList(
     detail: ChoreDetail,
     onComplete: () -> Unit,
     onSkip: () -> Unit,
+    enabled: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val locale = Locale.getDefault()
@@ -142,7 +156,7 @@ private fun ChoreDetailList(
     // day early produces a successor with the very same due date.
     var resolving by remember(detail.history.size) { mutableStateOf(false) }
     fun resolve(action: () -> Unit) {
-        if (resolving) return
+        if (resolving || !enabled) return
         resolving = true
         action()
     }
@@ -163,10 +177,10 @@ private fun ChoreDetailList(
                     Text(it, style = MaterialTheme.typography.bodyMedium)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { resolve(onSkip) }, enabled = !resolving) {
+                    OutlinedButton(onClick = { resolve(onSkip) }, enabled = enabled && !resolving) {
                         Text(stringResource(R.string.skip))
                     }
-                    Button(onClick = { resolve(onComplete) }, enabled = !resolving) {
+                    Button(onClick = { resolve(onComplete) }, enabled = enabled && !resolving) {
                         Text(stringResource(R.string.done))
                     }
                 }

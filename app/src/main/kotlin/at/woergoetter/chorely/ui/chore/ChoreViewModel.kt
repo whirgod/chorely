@@ -25,9 +25,10 @@ sealed interface ChoreState {
     data object Loading : ChoreState
 
     /**
-     * No such chore. Deleting happens only on the archive screen, which this one never sits
-     * above, so this is a stale key rather than a user journey — but it must not be a blank
-     * screen with Done and Skip on it.
+     * No such chore, or one that has been archived. Neither is a user journey — deleting and
+     * archiving happen where this screen is not, or leave it — so it is a stale key, say in a
+     * second stacked task. It must not be a screen with Done and Skip on it: the store ignores
+     * both for an archived chore, so they would be taps that silently do nothing.
      */
     data object Gone : ChoreState
 
@@ -48,7 +49,7 @@ class ChoreViewModel @AssistedInject constructor(
     private val id = ChoreId(route.choreId)
 
     val state: StateFlow<ChoreState> = chores.detail(id)
-        .map { detail -> detail?.let(ChoreState::Shown) ?: ChoreState.Gone }
+        .map { detail -> detail?.takeUnless { it.chore.isArchived }?.let(ChoreState::Shown) ?: ChoreState.Gone }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChoreState.Loading)
 
     // All three writes go on the application scope, unlike the agenda's, because this screen

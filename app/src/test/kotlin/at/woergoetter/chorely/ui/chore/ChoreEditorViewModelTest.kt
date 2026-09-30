@@ -23,6 +23,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.Instant
 import java.time.LocalDate
 import java.time.Period
 
@@ -76,6 +77,13 @@ class ChoreEditorViewModelTest {
     fun `load returns null when the chore is gone`() = runTest {
         // Deleted from the archive while the editor was being opened for it, say.
         assertNull(viewModel().load(ChoreId(404)))
+    }
+
+    @Test
+    fun `load returns null for an archived chore, whose edit the store would ignore`() = runTest {
+        val id = chores.given(chore(name = "Vacuum").copy(archivedAt = Instant.parse("2026-09-22T08:00:00Z")))
+
+        assertNull(viewModel().load(id))
     }
 
     @Test

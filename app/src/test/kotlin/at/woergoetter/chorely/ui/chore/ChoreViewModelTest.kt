@@ -29,6 +29,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.Instant
 import java.time.LocalDate
 import java.time.Period
 
@@ -105,6 +106,19 @@ class ChoreViewModelTest {
         advanceUntilIdle()
 
         chores.remove(ChoreId(1))
+        advanceUntilIdle()
+
+        assertEquals(ChoreState.Gone, viewModel.state.value)
+    }
+
+    @Test
+    fun `state is gone once the chore is archived, so Done and Skip are not offered`() = runTest(main) {
+        chores.given(chore(id = 1))
+        val viewModel = viewModel(id = 1)
+        backgroundScope.launch { viewModel.state.collect {} }
+        advanceUntilIdle()
+
+        chores.given(chore(id = 1).copy(archivedAt = Instant.parse("2026-09-22T08:00:00Z")))
         advanceUntilIdle()
 
         assertEquals(ChoreState.Gone, viewModel.state.value)
