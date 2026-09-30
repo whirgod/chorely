@@ -81,3 +81,12 @@ the new one. The history then says "Due Sep 29, done Sep 30" for an on-time
 completion. AGENTS.md requires the device's *current* zone.
 _Moves with it_: a clock whose `getZone()` reads `ZoneId.systemDefault()` each
 time, and a test that changes the default zone under it.
+
+**A stale editor can still save over an archived chore**
+The editor refuses to open an archived chore, but checks only when it opens:
+a chore archived from a second stacked task while the editor is up — or an
+editor restored after process death, which skips the load — saves into
+`Chores.edit`, which ignores it, and pops as though it had saved. Needs `edit`
+to say whether it wrote, which `Chores` returns as `Unit` today; `detail()`
+could also emit null for an archived chore, so screens stop filtering it
+themselves, once the chore screen no longer relies on seeing it archive.
