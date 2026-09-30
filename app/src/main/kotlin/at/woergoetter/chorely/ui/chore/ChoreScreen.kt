@@ -221,7 +221,7 @@ private fun ResolutionRow(resolution: Resolution, dates: DateTimeFormatter) {
             // A skip's moment is when it was recorded, which for a displaced one is merely
             // when the app next looked, and means nothing to the user.
             val doneOn = (resolution as? Resolution.Completion)
-                ?.let { it.at.toLocalDateHere() }
+                ?.at?.toLocalDateHere()
                 ?.takeIf { it != resolution.dueDate }
             Text(
                 if (doneOn == null) {

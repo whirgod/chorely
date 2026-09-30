@@ -15,8 +15,9 @@ fun rememberDateFormatter(locale: Locale = Locale.getDefault()): DateTimeFormatt
     remember(locale) { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale) }
 
 /**
- * The day this instant fell on in the zone the device is in *now*, like every other date in
- * the app: instants are stored, local dates derived on read, with no correction for travel.
- * Not `LocalDate.ofInstant`, which Android has only from API 34.
+ * The day this instant fell on in the zone the device is in *now*: instants are stored, local
+ * dates derived on read, with no correction for travel. The domain's injected clock should
+ * agree and, after a zone change with the process alive, does not yet — see TODO.md. Not
+ * `LocalDate.ofInstant`, which Android has only from API 34.
  */
 fun Instant.toLocalDateHere(): LocalDate = atZone(ZoneId.systemDefault()).toLocalDate()
