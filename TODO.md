@@ -46,6 +46,8 @@ themselves, once the chore screen no longer relies on seeing it archive.
 calls `due()` and then `markSeen()`, two operations that each read the clock,
 so a midnight or an eastward zone change between them records the next day as
 seen while the notification showed only this one — the lapse ADR 0002 exists
-to prevent, though only for a reminder time within milliseconds of midnight.
+to prevent. Reached by a midnight passing between the two calls, which include
+the post, or by an eastward zone change that crosses one: for a 20:00 reminder
+in Vienna, a move to Tokyo in that window is enough.
 _Moves with it_: `markSeen` taking the day that was shown, which `due()` would
 have to return; both are on the `Chores` interface.
