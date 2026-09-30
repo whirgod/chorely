@@ -322,6 +322,20 @@ class StoredChoresTest {
     }
 
     @Test
+    fun `markSeen never moves seenThrough backwards, as a move west would`() = runTest {
+        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
+        // The 09-19 occurrence is shown on 09-20; then "today" steps back to before it was due.
+        travelTo("2026-09-20")
+        chores.markSeen()
+        travelTo("2026-09-18")
+        chores.markSeen()
+
+        // Once 09-26 is due the 09-19 occurrence lapses, as it may only if it was seen.
+        travelTo("2026-09-27")
+        assertEquals(date("2026-09-26"), chores.detail(id).first()!!.outstanding.dueDate)
+    }
+
+    @Test
     fun `deleting a chore that is not archived leaves it and its history`() = runTest {
         val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
         travelTo("2026-09-19")

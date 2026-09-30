@@ -57,23 +57,6 @@ retries a failed run as a whole, up to five times, five minutes apart.
   own write failing is never seen, let alone retried. Awaiting it inside the
   digest worker suspends on the REPLACE that cancels that very worker, so the
   `DailyDigestWorkerTest` event assertions need rethinking with it.
-- A reboot while a failed digest waits out its backoff loses today's digest:
-  the boot sync REPLACEs the pending retry and aims at tomorrow. The same loss
-  `BootReceiver`'s KDoc already names for a reboot after the reminder time, made
-  likelier by the retry window; keeping a digest already aimed at today would
-  close both.
-
-**The injected clock keeps the zone the process started in**
-`DataModule.clock()` in
-[`DataModule.kt`](core/data/src/main/kotlin/at/woergoetter/chorely/data/DataModule.kt)
-is a singleton `Clock.systemDefaultZone()`, which captures the zone once, so
-after the user changes timezone with the process alive the domain derives due
-dates in the old zone while the UI (`toLocalDateHere` in
-[`ui/Dates.kt`](app/src/main/kotlin/at/woergoetter/chorely/ui/Dates.kt)) reads
-the new one. The history then says "Due Sep 29, done Sep 30" for an on-time
-completion. AGENTS.md requires the device's *current* zone.
-_Moves with it_: a clock whose `getZone()` reads `ZoneId.systemDefault()` each
-time, and a test that changes the default zone under it.
 
 **A stale editor can still save over an archived chore**
 The editor refuses to open an archived chore, but checks only when it opens:
@@ -83,3 +66,11 @@ editor restored after process death, which skips the load — saves into
 to say whether it wrote, which `Chores` returns as `Unit` today; `detail()`
 could also emit null for an archived chore, so screens stop filtering it
 themselves, once the chore screen no longer relies on seeing it archive.
+
+**One operation can read two zones**
+[`StoredChores`](core/domain/src/main/kotlin/at/woergoetter/chorely/domain/StoredChores.kt)
+reads its clock's zone several times per call, and the clock now follows a
+zone change, so one landing mid-call can bucket the agenda by one day and catch
+up by another. Milliseconds wide; `nextDigestDelay` already pins the zone once.
+_Moves with it_: `clock.withZone(clock.zone)` at the top of each operation,
+passed down into the `ChoreRecord` helpers that read the member today.
