@@ -161,8 +161,11 @@ data class ChoreEditorState(
  * one of them, or more than [ChoreEditorState.MAX_COUNT] of a single one. Weeks win over
  * days where both fit, since `Period.ofWeeks` stores its weeks as days and "every 14 days"
  * is not how anyone says a fortnight.
+ *
+ * The chore screen describes a recurrence with this too, so it reads back in the words the
+ * form offered when it was entered.
  */
-private fun Period.inOneUnit(): Pair<Int, PeriodUnit>? {
+internal fun Period.inOneUnit(): Pair<Int, PeriodUnit>? {
     val max = ChoreEditorState.MAX_COUNT
     val months = toTotalMonths()
     return when {

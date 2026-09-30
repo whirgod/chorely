@@ -27,6 +27,29 @@
     <string name="unit_weeks">Weeks</string>
     <string name="unit_months">Months</string>
 
+    <string name="edit">Edit</string>
+    <string name="archive_chore">Archive</string>
+    <string name="due_on">Due %1$s</string>
+    <string name="on_weekdays">On %1$s</string>
+    <plurals name="every_days">
+        <item quantity="one">Every day</item>
+        <item quantity="other">Every %1$d days</item>
+    </plurals>
+    <plurals name="every_weeks">
+        <item quantity="one">Every week</item>
+        <item quantity="other">Every %1$d weeks</item>
+    </plurals>
+    <plurals name="every_months">
+        <item quantity="one">Every month</item>
+        <item quantity="other">Every %1$d months</item>
+    </plurals>
+    <string name="history">History</string>
+    <string name="history_empty">Nothing yet. Each time this is done or skipped, it is listed here.</string>
+    <string name="resolution_done">Done</string>
+    <string name="resolution_skipped">Skipped</string>
+    <string name="resolution_displaced">Skipped automatically</string>
+    <string name="resolution_done_on">Due %1$s, done %2$s</string>
+
     <string name="daily_reminder">Daily reminder</string>
     <string name="reminder_off">Off</string>
     <string name="reminder_at">Every day at %1$s</string>

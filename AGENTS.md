@@ -6,7 +6,7 @@ Chorely is an offline-only Android app for recurring home cleaning chores: the u
 
 Stack: Kotlin, Jetpack Compose, Navigation 3, Room, Hilt, WorkManager. Modules are `:app`, `:core:data` and `:core:domain`; see [docs/adr/0003](docs/adr/0003-three-modules-with-a-pure-domain.md) for why, and read it before adding a module or moving code between them.
 
-The UI is scaffolding: `AgendaScreen` and `ChoreEditorScreen` are built, the chore/archive/settings screens are marked `TODO` and render placeholder text. Everything beneath them is real; the open work and the traps in each piece of it are in [TODO.md](TODO.md).
+Every screen is built except `ArchiveScreen`, which is marked `TODO` and renders placeholder text. Everything beneath them is real; the open work and the traps in each piece of it are in [TODO.md](TODO.md).
 
 ## Setup
 
@@ -96,7 +96,7 @@ The reminder path is where sessions get lost. Facts that are not visible from an
 - Dependency versions live only in `gradle/libs.versions.toml` — never inline a version in a `build.gradle.kts`, and never duplicate one into this file.
 - Date/time: `java.time` with both `Clock` and `ZoneId` injected into scheduling logic, so tests can advance time and change timezone.
 - Due dates are whole local calendar days in the device's *current* timezone, with no correction for travel: store instants, derive local dates on read.
-- `minSdk` is 26 so `java.time` needs no core library desugaring — lowering it means adding desugaring to both Android modules, not just changing the number.
+- `minSdk` is 26 so Java 8's `java.time` needs no core library desugaring — lowering it means adding desugaring to both Android modules, not just changing the number — but later additions such as `LocalDate.ofInstant` are API 34+ and pass on the API 36 emulator, so only `./gradlew lint` catches them.
 - `:core:domain` must stay a plain Kotlin JVM module: if something there needs Android, it needs a port instead.
 - A write the user has been told is done must outlive its screen and goes on the injected `@ApplicationScope` `CoroutineScope` (`ChoreEditorViewModel.onSave` and `SettingsViewModel.onReminderTimeChanged`); work that merely feeds a screen stays on `viewModelScope`, which a pop cancels.
 

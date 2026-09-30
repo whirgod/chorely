@@ -13,6 +13,7 @@ import at.woergoetter.chorely.ui.agenda.AgendaScreen
 import at.woergoetter.chorely.ui.archive.ArchiveScreen
 import at.woergoetter.chorely.ui.chore.ChoreEditorScreen
 import at.woergoetter.chorely.ui.chore.ChoreScreen
+import at.woergoetter.chorely.ui.chore.ChoreViewModel
 import at.woergoetter.chorely.ui.settings.SettingsScreen
 
 /**
@@ -67,8 +68,11 @@ fun ChorelyNavigation() {
             }
             entry<ChoreRoute> { route ->
                 ChoreScreen(
-                    choreId = ChoreId(route.choreId),
-                    viewModel = hiltViewModel(),
+                    // The entry's ViewModelStore is keyed by the route, so this factory runs
+                    // once per ChoreRoute and never hands one chore's ViewModel to another.
+                    viewModel = hiltViewModel<ChoreViewModel, ChoreViewModel.Factory>(
+                        creationCallback = { it.create(route) },
+                    ),
                     onEdit = { backStack.go(ChoreEditorRoute(route.choreId)) },
                     onBack = { backStack.back() },
                 )
