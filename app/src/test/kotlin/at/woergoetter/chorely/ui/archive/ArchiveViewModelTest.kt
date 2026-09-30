@@ -46,7 +46,10 @@ class ArchiveViewModelTest {
     fun setUp() = Dispatchers.setMain(main)
 
     @After
-    fun tearDown() = Dispatchers.resetMain()
+    fun tearDown() {
+        applicationJob.cancel()
+        Dispatchers.resetMain()
+    }
 
     private fun TestScope.viewModel() = ArchiveViewModel(
         chores = chores,

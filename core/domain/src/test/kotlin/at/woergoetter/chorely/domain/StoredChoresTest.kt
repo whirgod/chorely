@@ -299,15 +299,18 @@ class StoredChoresTest {
     }
 
     @Test
-    fun `archiving an archived chore keeps the moment it was first archived`() = runTest {
+    fun `archiving an archived chore changes nothing, not even the lapses it would catch up`() = runTest {
         val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
         chores.archive(id)
         val first = chores.archived().first().single().archivedAt
-        travelTo("2026-09-20")
+        // Three Saturdays pass, and the user is shown the agenda, which advances seenThrough.
+        travelTo("2026-10-08")
+        chores.markSeen()
 
         chores.archive(id)
 
         assertEquals(first, chores.archived().first().single().archivedAt)
+        assertTrue(chores.detail(id).first()!!.history.isEmpty())
     }
 
     private fun StoredChores(store: ChoreStore, clock: () -> Clock): Chores =
