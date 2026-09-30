@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.navigation3.runtime.NavKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -40,6 +41,7 @@ class GuardedNavDisplayTest {
 
     private val stack = mutableStateListOf<NavKey>()
     private val acted = mutableListOf<NavKey>()
+    private val poked = mutableListOf<NavKey>()
     private lateinit var navigator: Navigator
 
     private fun show(vararg keys: NavKey) {
@@ -61,6 +63,10 @@ class GuardedNavDisplayTest {
             Text("screen $key")
             Button(onClick = { navigator.back(from = key) }) { Text("$key back") }
             Button(onClick = { if (navigator.isActive(key)) acted += key }) { Text("$key act") }
+            // Ungated, as the agenda's and the settings screen's controls are: only the
+            // display's touch blocking stands between it and a tap on a departing screen.
+            Button(onClick = { poked += key }) { Text("$key poke") }
+            Button(onClick = { navigator.go(from = key, to = B) }) { Text("$key open B") }
         }
     }
 
@@ -139,5 +145,45 @@ class GuardedNavDisplayTest {
 
         assertEquals(listOf(A), stack)
         assertFalse("the activity must not finish", rule.activity.isFinishing)
+    }
+
+    @Test
+    fun systemBackWorksAgainOnceTheTransitionHasSettled() {
+        show(A, B, C)
+
+        midTransition { click("C back") }
+        settle()
+        systemBack()
+        settle()
+
+        // Settled by B's own resume, not by the state the navigator started in.
+        assertEquals(listOf(A), stack)
+    }
+
+    @Test
+    fun aQuickBackAfterAPushLeavesTheRootUnsettled() {
+        show(A)
+
+        midTransition { click("A open B") }
+        click("B back")
+        rule.mainClock.advanceTimeBy(50)
+        systemBack()
+        settle()
+
+        assertEquals(listOf(A), stack)
+        assertFalse("the activity must not finish", rule.activity.isFinishing)
+    }
+
+    @Test
+    fun aDepartingScreenTakesNoTouches() {
+        show(A, B)
+        rule.onNodeWithText("B poke").performClick()
+        assertEquals("control: a settled screen takes the touch", listOf<NavKey>(B), poked)
+
+        midTransition { systemBack() }
+        rule.onNodeWithText("B poke").performClick()
+        settle()
+
+        assertEquals(listOf<NavKey>(B), poked)
     }
 }

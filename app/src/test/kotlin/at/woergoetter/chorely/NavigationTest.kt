@@ -113,37 +113,56 @@ class NavigationTest {
     fun `the screen on top may leave before it has settled`() {
         val stack = stackOf(AgendaRoute)
         val navigator = Navigator(stack)
+        navigator.onResumed(AgendaRoute)
         navigator.go(from = AgendaRoute, to = ChoreEditorRoute(1))
+        // The transition holds everything at STARTED, the agenda included.
+        navigator.onPaused(AgendaRoute)
 
         // The editor finding its chore gone while it is still sliding in.
         navigator.back(from = ChoreEditorRoute(1))
 
         assertEquals(listOf(AgendaRoute), stack)
+        // Back on the agenda, but not settled on it: it is still sliding back in.
+        assertEquals(false, navigator.isSettled)
     }
 
     @Test
-    fun `system back waits until the new top has settled`() {
+    fun `system back waits until the new top has resumed`() {
         val stack = stackOf(AgendaRoute, ChoreRoute(1), ChoreEditorRoute(1))
         val navigator = Navigator(stack)
+        navigator.onResumed(ChoreEditorRoute(1))
         navigator.back(from = ChoreEditorRoute(1))
+        navigator.onPaused(ChoreEditorRoute(1))
 
         navigator.systemBack()
         assertEquals(listOf(AgendaRoute, ChoreRoute(1)), stack)
 
-        navigator.settle(ChoreRoute(1))
+        navigator.onResumed(ChoreRoute(1))
         navigator.systemBack()
         assertEquals(listOf(AgendaRoute), stack)
     }
 
     @Test
-    fun `only the top can settle`() {
+    fun `a late resume of the entry that left does not settle the new top`() {
         val stack = stackOf(AgendaRoute, ChoreRoute(1))
         val navigator = Navigator(stack)
         navigator.back(from = ChoreRoute(1))
 
-        // A resume from the entry that just left, arriving late, must not unlock system back.
-        navigator.settle(ChoreRoute(1))
+        navigator.onResumed(ChoreRoute(1))
 
         assertEquals(false, navigator.isSettled)
+    }
+
+    @Test
+    fun `an entry that never stopped being resumed is settled`() {
+        // Popped and pushed back before NavDisplay recomposed: its lifecycle never left
+        // RESUMED, so no new resume will arrive, and back must not wait for one.
+        val stack = stackOf(AgendaRoute, ChoreRoute(1))
+        val navigator = Navigator(stack)
+        navigator.onResumed(ChoreRoute(1))
+        navigator.back(from = ChoreRoute(1))
+        navigator.go(from = AgendaRoute, to = ChoreRoute(1))
+
+        assertEquals(true, navigator.isSettled)
     }
 }

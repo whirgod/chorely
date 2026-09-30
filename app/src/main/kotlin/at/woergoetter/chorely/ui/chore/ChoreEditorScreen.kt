@@ -111,7 +111,7 @@ fun ChoreEditorScreen(
                     Text(stringResource(if (choreId == null) R.string.new_chore else R.string.edit_chore))
                 },
                 navigationIcon = {
-                    TextButton(onClick = { leave() }, enabled = !leaving) {
+                    TextButton(onClick = { leave() }, enabled = !leaving && isActive()) {
                         Text(stringResource(R.string.cancel))
                     }
                 },
@@ -124,7 +124,7 @@ fun ChoreEditorScreen(
                             val ready = draft ?: return@TextButton
                             leave { viewModel.onSave(choreId, ready) }
                         },
-                        enabled = draft != null && !leaving,
+                        enabled = draft != null && !leaving && isActive(),
                     ) { Text(stringResource(R.string.save)) }
                 },
             )

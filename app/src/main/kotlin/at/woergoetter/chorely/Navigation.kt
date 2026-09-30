@@ -1,15 +1,16 @@
 package at.woergoetter.chorely
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavEntry
@@ -66,18 +67,24 @@ internal fun MutableList<NavKey>.go(key: NavKey) {
  *
  * A screen popping itself before it has settled stays allowed — the editor finding its chore
  * gone while it is still sliding in has to be able to leave.
+ *
+ * Settled means resumed. NavDisplay holds every entry at `STARTED` for the length of a
+ * transition and resumes the one on top once it ends, so the entry's own resumed state is the
+ * answer — rather than a record of which entry settled last, which a quick pop can make match
+ * the new top while it is still mid-transition, and which an entry that never left `RESUMED`
+ * would never update.
  */
 @Stable
 class Navigator(private val stack: MutableList<NavKey>) {
 
-    /** The entry that last reached `ON_RESUME` while on top. Nav3 resumes one only once settled. */
-    private var settled: NavKey? by mutableStateOf(stack.lastOrNull())
+    /** The entries whose lifecycle is `RESUMED` right now, as reported by [GuardedNavDisplay]. */
+    private val resumed = mutableStateMapOf<NavKey, Unit>()
 
     /** Whether [key] is on top, and so may still act: a screen off the top is on its way out. */
     fun isActive(key: NavKey): Boolean = stack.lastOrNull() == key
 
     /** Whether the top entry has finished arriving. */
-    val isSettled: Boolean get() = stack.lastOrNull().let { it != null && it == settled }
+    val isSettled: Boolean get() = stack.lastOrNull()?.let { it in resumed } ?: false
 
     /** [from] leaving itself; refused unless it is on top. */
     fun back(from: NavKey) {
@@ -95,8 +102,13 @@ class Navigator(private val stack: MutableList<NavKey>) {
     }
 
     /** Called when [key]'s entry resumes. */
-    fun settle(key: NavKey) {
-        if (isActive(key)) settled = key
+    fun onResumed(key: NavKey) {
+        resumed[key] = Unit
+    }
+
+    /** Called when [key]'s entry pauses or leaves composition. */
+    fun onPaused(key: NavKey) {
+        resumed.remove(key)
     }
 }
 
@@ -150,9 +162,12 @@ fun ChorelyNavigation() {
 
 /**
  * NavDisplay with [navigator]'s guards wired in: system back goes through
- * [Navigator.systemBack], each entry reports its resume to [Navigator.settle], and a back
- * that NavDisplay would not intercept — on a one-entry stack, where the activity would finish
- * — is swallowed until the top has settled.
+ * [Navigator.systemBack], each entry reports its lifecycle to the navigator, an entry off the
+ * top takes no touches, and a back that NavDisplay would not intercept — on a one-entry stack,
+ * where the activity would finish — is swallowed until the top has settled.
+ *
+ * Blocking touches here covers every screen, including any added later; the screens that
+ * write gate on [Navigator.isActive] as well, for input that does not arrive as a touch.
  *
  * Separate from [ChorelyNavigation] so the guards can be tested through a real transition
  * without the app's screens.
@@ -163,7 +178,19 @@ fun GuardedNavDisplay(
     backStack: List<NavKey>,
     entries: EntryProviderScope<NavKey>.() -> Unit,
 ) {
-    val provider = entryProvider<NavKey> { entries() }
+    val provider = remember(entries) { entryProvider<NavKey> { entries() } }
+    val guarded: (NavKey) -> NavEntry<NavKey> = remember(provider, navigator) {
+        { key ->
+            val entry = provider(key)
+            NavEntry(navEntry = entry) { _: NavKey ->
+                LifecycleResumeEffect(key, navigator) {
+                    navigator.onResumed(key)
+                    onPauseOrDispose { navigator.onPaused(key) }
+                }
+                Box(if (navigator.isActive(key)) Modifier else BlockTouches) { entry.Content() }
+            }
+        }
+    }
     NavDisplay(
         backStack = backStack,
         onBack = { navigator.systemBack() },
@@ -175,17 +202,28 @@ fun GuardedNavDisplay(
             rememberSaveableStateHolderNavEntryDecorator(),
             rememberViewModelStoreNavEntryDecorator(),
         ),
-        entryProvider = { key ->
-            val entry = provider(key)
-            NavEntry(navEntry = entry) { _: NavKey ->
-                LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { navigator.settle(key) }
-                entry.Content()
-            }
-        },
+        entryProvider = guarded,
     )
-    // Registered after NavDisplay's own, so it is asked first; only ever on while unsettled.
-    // This, not systemBack()'s own check, is what refuses an early back on the emulator the
-    // tests run on — the check stays as a backstop should NavDisplay's handler ever be asked
-    // first. GuardedNavDisplayTest fails with both removed.
+    SwallowEarlyBack(navigator)
+}
+
+/**
+ * Registered after NavDisplay's own handler, so it is asked first, and only ever on while the
+ * top is unsettled. This, not systemBack()'s own check, is what refuses an early back on the
+ * emulators the tests run on; the check stays as a backstop should NavDisplay's handler ever
+ * be asked first. GuardedNavDisplayTest fails with both removed. Its own composable, so that
+ * settling recomposes this and not the display.
+ */
+@Composable
+private fun SwallowEarlyBack(navigator: Navigator) {
     BackHandler(enabled = !navigator.isSettled) {}
+}
+
+/** Consumes every pointer event before the content sees it, so nothing under it is tapped. */
+private val BlockTouches = Modifier.pointerInput(Unit) {
+    awaitPointerEventScope {
+        while (true) {
+            awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+        }
+    }
 }

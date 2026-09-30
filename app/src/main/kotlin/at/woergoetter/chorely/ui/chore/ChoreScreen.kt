@@ -95,7 +95,7 @@ fun ChoreScreen(
     var lastShown by remember { mutableStateOf<ChoreDetail?>(null) }
     (state as? ChoreState.Shown)?.detail?.let { lastShown = it }
     val detail = lastShown
-    val canAct = state is ChoreState.Shown && !leaving
+    val canAct = state is ChoreState.Shown && !leaving && isActive()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -105,7 +105,7 @@ fun ChoreScreen(
                     Text(detail?.chore?.name.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 },
                 navigationIcon = {
-                    TextButton(onClick = { leave(onBack) }, enabled = !leaving) {
+                    TextButton(onClick = { leave(onBack) }, enabled = !leaving && isActive()) {
                         Text(stringResource(R.string.back))
                     }
                 },
