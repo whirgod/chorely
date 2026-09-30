@@ -2,9 +2,10 @@
 
 [ADR 0001](0001-occurrence-stream-with-auto-skip.md) settled that a calendar-anchored
 occurrence is auto-skipped when its successor falls due, and that auto-skips are written
-rather than derived. Taken alone that rule invents history: a phone left off for a month,
-opened once, would write four weeks of lapses for a daily chore in a single catch-up — a
-record of the user failing at something they were never told about. So auto-skip carries a
+rather than derived. Taken alone that rule invents history: a phone left off for a month
+would, the moment it came back, show a daily chore as due today with four weeks of lapses
+already written behind it — a record of the user failing at something they were never told
+about. So auto-skip carries a
 second condition: an occurrence is displaced only if it fell due on or before the last day
 the user was shown what was due.
 
@@ -32,13 +33,14 @@ what the history then records is how far, not a failure they never heard of.
   counted as seen without having been on screen: a weekly Saturday-and-Sunday chore whose
   Saturday is still outstanding on Sunday shows Saturday, the day is marked seen, and
   Sunday's occurrence — outstanding once Saturday lapses — can lapse in turn at the next
-  Saturday — and after a longer gap, every occurrence up to the day marked seen. Exactness
+  Saturday. After a longer gap it is every occurrence up to the day marked seen. Exactness
   would need a seen date per chore, with the storage and migrations that come with it, and
   would then lapse one occurrence per view: a chore a month behind would step forward a day
   each time the app was opened. The global date was kept and the rule stated per day.
-- **Marking seen only through the oldest overdue occurrence shown.** Exact without new
-  storage, but one neglected chore would hold back lapses for every other chore, however
-  current those were. Rejected for that.
+- **Marking seen only through the oldest overdue calendar-anchored occurrence shown.** Exact
+  without new storage, but it too lapses one occurrence per view, and one neglected chore
+  would hold back lapses for every other chore, however current those were. Rejected for
+  that.
 - **Counting any app launch as seen.** Rejected: opening the editor to add a chore is not
   being shown what is due, and it would make lapses depend on which screen the user happened
   to open.
@@ -48,8 +50,8 @@ what the history then records is how far, not a failure they never heard of.
 ## Consequences
 
 A user who never grants notification permission and rarely opens the app accumulates no
-lapses at all — their chore simply stays outstanding at its original due date, growing more
-overdue. That is the correct reading of "overdue is not a judgement": the app records what
+lapses between visits — their chore stays outstanding at its original due date, growing
+more overdue — and each visit then records everything it was shown to have fallen behind. That is the correct reading of "overdue is not a judgement": the app records what
 it knows, and it does not know the chore was skipped.
 
 It also means the history is a record of *acknowledged* misses rather than of calendar
