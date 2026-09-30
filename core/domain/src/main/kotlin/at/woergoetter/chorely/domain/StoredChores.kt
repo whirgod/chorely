@@ -107,10 +107,8 @@ class StoredChores(
     }
 
     override suspend fun archive(id: ChoreId): Unit = store.transact { edit ->
-        // Archiving twice keeps the first moment, which is what the archive sorts and shows —
-        // and returns before catching up, since an archived chore's occurrences never fell due
-        // and a catch-up would write months of lapses into a history that cannot lose them.
-        if (edit.book().record(id)?.chore?.isArchived != false) return@transact
+        // Archiving twice keeps the first moment, which is what the archive sorts and shows:
+        // caughtUp refuses an archived chore.
         val (record, _) = edit.caughtUp(id) ?: return@transact
         edit.update(record.chore.copy(archivedAt = clock.instant()))
     }
@@ -142,11 +140,14 @@ class StoredChores(
 
     /**
      * Writes any lapses the chore has accrued and returns it as it then stands, so callers
-     * act on a chore that is already up to date. Null if there is no such chore.
+     * act on a chore that is already up to date. Null if there is no such chore, or if it is
+     * archived — which is what makes every write through here refuse an archived chore: its
+     * occurrences stopped falling due when it was archived, and catching it up would write
+     * months of lapses into a history that cannot lose them.
      */
     private suspend fun ChoreEdit.caughtUp(id: ChoreId): Pair<ChoreRecord, LocalDate?>? {
         val book = book()
-        val record = book.record(id) ?: return null
+        val record = book.record(id)?.takeUnless { it.chore.isArchived } ?: return null
         val displaced = record.catchUp(book.seenThrough).displaced
         if (displaced.isEmpty()) return record to book.seenThrough
         append(id, displaced)

@@ -48,17 +48,6 @@ constrained, so on a narrow phone with a large font the name — the only thing
 saying which chore a Delete applies to — is squeezed to a sliver. Moving the
 actions under the headline, or into an overflow menu, fixes it.
 
-**Writes to an archived chore still catch it up**
-`complete`, `skip` and `edit` in
-[`StoredChores.kt`](core/domain/src/main/kotlin/at/woergoetter/chorely/domain/StoredChores.kt)
-run `caughtUp` without asking whether the chore is archived, so they write the
-lapses of months it spent in the archive into a history that cannot lose them —
-the thing `archive`, `restore` and `delete` now refuse. Nothing in the app
-reaches them for an archived chore, since no screen opens one; a second stacked
-`MainActivity` holding a stale chore screen can.
-_Moves with it_: a `StoredChoresTest` case per write, and one gate in
-`caughtUp` is likely simpler than three.
-
 **Three edges of the digest's retry**
 [`DailyDigestWorker`](app/src/main/kotlin/at/woergoetter/chorely/reminder/DailyDigestWorker.kt)
 retries a failed run as a whole, up to five times, five minutes apart.

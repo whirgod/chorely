@@ -288,6 +288,24 @@ class StoredChoresTest {
     }
 
     @Test
+    fun `completing, skipping or editing an archived chore writes nothing`() = runTest {
+        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
+        chores.archive(id)
+        // Three Saturdays pass and the user is shown the agenda, so an active chore would now
+        // have lapses to write.
+        travelTo("2026-10-08")
+        chores.markSeen()
+        val before = chores.archived().first().single()
+
+        chores.complete(id)
+        chores.skip(id)
+        chores.edit(id, ChoreDraft("Hoover", weekly(SUNDAY)))
+
+        assertTrue(chores.detail(id).first()!!.history.isEmpty())
+        assertEquals(before, chores.archived().first().single())
+    }
+
+    @Test
     fun `deleting a chore that is not archived leaves it and its history`() = runTest {
         val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
         travelTo("2026-09-19")

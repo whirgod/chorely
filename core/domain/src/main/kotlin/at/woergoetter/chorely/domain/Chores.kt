@@ -43,14 +43,14 @@ interface Chores {
 
     /**
      * Applies [draft] and recomputes the outstanding occurrence under the new recurrence.
-     * An occurrence that was already overdue stays overdue.
+     * An occurrence that was already overdue stays overdue. An archived chore is left as it is.
      */
     suspend fun edit(id: ChoreId, draft: ChoreDraft)
 
-    /** Resolves the outstanding occurrence as done. Permitted before the due date. */
+    /** Resolves the outstanding occurrence as done. Permitted before the due date; refused for an archived chore. */
     suspend fun complete(id: ChoreId)
 
-    /** Resolves the outstanding occurrence as deliberately passed over. */
+    /** Resolves the outstanding occurrence as deliberately passed over; refused for an archived chore. */
     suspend fun skip(id: ChoreId)
 
     /** Stops the chore falling due, keeping its history. Archiving it again changes nothing. */
