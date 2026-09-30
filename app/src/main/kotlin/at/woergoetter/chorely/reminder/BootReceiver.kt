@@ -9,9 +9,15 @@ import androidx.work.WorkManager
 /**
  * Rebuilds the reminder schedule after a reboot.
  *
- * Scheduled work and alarms do not survive one, and the database does — so this asks for the
- * schedule to be derived again rather than restoring anything. It delegates to a worker
- * because a receiver has no business doing database I/O in its ten-second window.
+ * Derives the schedule again from Room rather than restoring anything, and delegates to a
+ * worker because a receiver has no business doing database I/O in its ten-second window.
+ *
+ * It is belt-and-braces, not load-bearing: the digest is WorkManager work, and WorkManager
+ * persists its own requests and reschedules them itself after a reboot — nothing here uses
+ * AlarmManager, which is the thing that really does lose its schedule. So this costs a
+ * `sync()`, and `sync()` re-enqueues with REPLACE: a reboot after the reminder time, with
+ * the digest restored but not yet run, discards it. Whether the receiver earns that is an
+ * open question; see the sync bullet in AGENTS.md.
  *
  * Not a Hilt entry point: it injects nothing, and WorkManager is reached through its own
  * singleton rather than through the graph.

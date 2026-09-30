@@ -3,7 +3,8 @@
 
     <!-- Runtime permission on API 33+. A silently missing digest is almost always this. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Scheduled work does not survive a reboot; BootReceiver re-derives it from Room. -->
+    <!-- BootReceiver re-derives the schedule from Room; see its KDoc for why that is
+         belt-and-braces rather than necessary. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!--
@@ -24,10 +25,16 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Chorely">
 
+        <!--
+          adjustResize so the IME reports its inset and the editor's fields can move out
+          from under the keyboard; the activity is edge-to-edge, and on API 26-29 nothing
+          else makes `WindowInsets.ime` report a height.
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.Chorely">
+            android:theme="@style/Theme.Chorely"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
