@@ -51,8 +51,8 @@ interface Chores {
      * protects only from the next call onward.
      *
      * Seen through a day, not occurrence by occurrence: each chore is shown only by its
-     * outstanding occurrence, so a later one of the same chore can count as seen without
-     * having been on screen. Accepted — see ADR 0002.
+     * outstanding occurrence, so every later occurrence of it up to [through] counts as seen
+     * without having been on screen, and may lapse. Accepted — see ADR 0002.
      */
     suspend fun markSeen(through: LocalDate)
 

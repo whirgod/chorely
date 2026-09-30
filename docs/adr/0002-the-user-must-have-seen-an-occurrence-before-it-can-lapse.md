@@ -1,11 +1,12 @@
-# An occurrence must have been seen before it can be recorded as a lapse
+# What was due must have been shown before an occurrence can be recorded as a lapse
 
 [ADR 0001](0001-occurrence-stream-with-auto-skip.md) settled that a calendar-anchored
 occurrence is auto-skipped when its successor falls due, and that auto-skips are written
 rather than derived. Taken alone that rule invents history: a phone left off for a month,
 opened once, would write four weeks of lapses for a daily chore in a single catch-up — a
 record of the user failing at something they were never told about. So auto-skip carries a
-second condition: an occurrence is displaced only if the user has already been shown it.
+second condition: an occurrence is displaced only if it fell due on or before the last day
+the user was shown what was due.
 
 "Shown" is one date for the whole app, `seenThrough`, stored in Room and advanced by
 `Chores.markSeen()`. Two things advance it, and both are places the user genuinely saw what
@@ -14,10 +15,14 @@ not merely the worker having run, since a digest the system refused for want of
 `POST_NOTIFICATIONS` reached nobody. Each passes the day it worked its list out for, not
 the day it happens to be when the write lands.
 
-The guarantee is therefore per *day*, not per occurrence: the user has been shown the app's
-state as of that day. That is deliberately weaker than "this exact occurrence was on
-screen" — see the per-chore option below — and strong enough for what the rule exists to
-prevent, a month of lapses written for a phone that was off.
+The guarantee is therefore per *day*, not per occurrence. Nothing lapses while nothing is
+shown — a phone left off, or notifications refused and the app never opened, accrues no
+lapses however long it goes on. But once the user has been shown what was due on a day,
+every occurrence due on or before that day may lapse, including ones never individually on
+screen: a daily chore last seen on the 1st and next opened on the 31st shows as overdue
+since the 2nd, and the next catch-up records the 2nd to the 30th as lapses. That is
+accepted. The chore was on screen as overdue, so the user was told it had fallen behind;
+what the history then records is how far, not a failure they never heard of.
 
 ## Considered options
 
@@ -27,10 +32,13 @@ prevent, a month of lapses written for a phone that was off.
   counted as seen without having been on screen: a weekly Saturday-and-Sunday chore whose
   Saturday is still outstanding on Sunday shows Saturday, the day is marked seen, and
   Sunday's occurrence — outstanding once Saturday lapses — can lapse in turn at the next
-  Saturday. Exactness would need a seen date per chore, or a record of which occurrences
-  each view displayed, and the storage and migrations that come with it. The divergence is
-  one occurrence at a time, on a chore the user was already being shown as overdue, so the
-  global date was kept and the rule relaxed to match it.
+  Saturday — and after a longer gap, every occurrence up to the day marked seen. Exactness
+  would need a seen date per chore, with the storage and migrations that come with it, and
+  would then lapse one occurrence per view: a chore a month behind would step forward a day
+  each time the app was opened. The global date was kept and the rule stated per day.
+- **Marking seen only through the oldest overdue occurrence shown.** Exact without new
+  storage, but one neglected chore would hold back lapses for every other chore, however
+  current those were. Rejected for that.
 - **Counting any app launch as seen.** Rejected: opening the editor to add a chore is not
   being shown what is due, and it would make lapses depend on which screen the user happened
   to open.
