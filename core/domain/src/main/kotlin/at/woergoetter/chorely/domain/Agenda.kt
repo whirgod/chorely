@@ -25,6 +25,10 @@ data class Agenda(
 /** Everything the per-chore screen shows: the chore, where it stands, and its history. */
 data class ChoreDetail(
     val chore: Chore,
+    /**
+     * Derived from this same [history], so a history that has just grown is never shown
+     * beside the occurrence it resolved.
+     */
     val outstanding: Occurrence,
     /** Newest first. Append-only, so this only ever grows. */
     val history: List<Resolution>,

@@ -27,6 +27,8 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import at.woergoetter.chorely.R
 import at.woergoetter.chorely.domain.ChoreDetail
@@ -55,21 +57,27 @@ fun ChoreScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    // The editor's latch, for the same reason: a popped screen stays composed and tappable
-    // for the length of its exit transition. Back and Archive both pop, so a second tap on
-    // either pops again — harmless today only because `back()` refuses to pop the agenda,
-    // not because anything knew the tap was spent — and a second Archive is a second write.
-    // Edit is folded in too: a push from a screen on its way out lands where it has gone.
+    // The editor's latch, for the same reason: a screen stays composed and tappable for the
+    // length of the transition that takes it off screen. Back and Archive both pop, so a
+    // second tap on either pops again — harmless today only because `back()` refuses to pop
+    // the agenda, not because anything knew the tap was spent — and a second Archive is a
+    // second write. Edit pushes, and a Back or Archive landing while the editor slides in
+    // would pop the editor instead of this screen, so all three share the one way out.
     var leaving by remember { mutableStateOf(false) }
-    fun leave(onWayOut: () -> Unit = {}) {
+    fun leave(onWayOut: () -> Unit) {
         if (leaving) return
         leaving = true
         onWayOut()
-        onBack()
     }
 
+    // Edit is a way out that comes back. Usually this entry leaves composition behind the
+    // editor and returns with a fresh latch, but an editor popped mid-transition hands the
+    // screen back still composed and still latched. Nav3 resumes an entry only once it is on
+    // top and settled, so a resume is the moment the screen is fully back and may be left again.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { leaving = false }
+
     LaunchedEffect(state) {
-        if (state is ChoreState.Gone) leave()
+        if (state is ChoreState.Gone) leave(onBack)
     }
 
     val detail = (state as? ChoreState.Shown)?.detail
@@ -82,18 +90,23 @@ fun ChoreScreen(
                     Text(detail?.chore?.name.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 },
                 navigationIcon = {
-                    TextButton(onClick = { leave() }, enabled = !leaving) {
+                    TextButton(onClick = { leave(onBack) }, enabled = !leaving) {
                         Text(stringResource(R.string.back))
                     }
                 },
                 actions = {
-                    TextButton(onClick = onEdit, enabled = detail != null && !leaving) {
+                    TextButton(onClick = { leave(onEdit) }, enabled = detail != null && !leaving) {
                         Text(stringResource(R.string.edit))
                     }
                     // No confirmation, unlike delete: archiving keeps the history, and the
                     // archive screen restores it in one tap.
                     TextButton(
-                        onClick = { leave(viewModel::onArchive) },
+                        onClick = {
+                            leave {
+                                viewModel.onArchive()
+                                onBack()
+                            }
+                        },
                         enabled = detail != null && !leaving,
                     ) { Text(stringResource(R.string.archive_chore)) }
                 },
@@ -123,7 +136,8 @@ private fun ChoreDetailList(
     // Done and Skip each resolve whichever occurrence is outstanding when the write lands, so
     // a double tap resolves this one and then its successor, which the user has never seen.
     // Resolving always appends to the history, so the buttons stay off from the first tap
-    // until the history has grown — the moment the screen shows what the tap did. Keyed on
+    // until the history has grown — the moment the screen shows what the tap did, since the
+    // outstanding occurrence is derived from that same history (see ChoreDetail). Keyed on
     // the size and not the outstanding occurrence, since completing an "every day" chore a
     // day early produces a successor with the very same due date.
     var resolving by remember(detail.history.size) { mutableStateOf(false) }

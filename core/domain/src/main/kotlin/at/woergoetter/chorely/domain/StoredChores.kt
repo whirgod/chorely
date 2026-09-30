@@ -34,9 +34,13 @@ class StoredChores(
     override fun detail(id: ChoreId): Flow<ChoreDetail?> =
         combine(store.book(), store.history(id)) { book, history ->
             val record = book.record(id) ?: return@combine null
+            // Derived from the history's head rather than the book's newest resolution, which
+            // is the same row: the two are separate flows, and a write re-emits them one at a
+            // time, so the book's copy can lag the history it is shown next to.
+            val current = record.copy(lastResolution = history.firstOrNull())
             ChoreDetail(
-                chore = record.chore,
-                outstanding = record.outstanding(book.seenThrough),
+                chore = current.chore,
+                outstanding = current.outstanding(book.seenThrough),
                 history = history,
             )
         }
