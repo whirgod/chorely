@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,6 +22,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import at.woergoetter.chorely.R
@@ -51,13 +55,19 @@ fun ArchiveScreen(
     var confirmingDelete by rememberSaveable { mutableStateOf<Long?>(null) }
 
     // Chores whose Restore or Delete has been tapped and not yet landed. The row stays composed
-    // until the store emits without it, and a second Delete in that window is a second write
-    // at best; a second Restore is refused by the store, but the button should not offer it.
-    // Saved, like the dialog, so a rotation inside that window does not re-enable the row.
-    var spent by rememberSaveable { mutableStateOf(emptyList<Long>()) }
+    // until the store emits without it, and the buttons should not offer a second write that
+    // the store would only refuse. Not saved: the write it waits on lives in memory, so a
+    // latch that outlived the process would disable a row whose write never happened, and
+    // the store already makes a rotation's second tap harmless. Pruned to what is still
+    // archived, so a chore that leaves and comes back is not born disabled.
+    var spent by remember { mutableStateOf(emptySet<ChoreId>()) }
+    LaunchedEffect(archived) {
+        val still = archived.orEmpty().mapTo(mutableSetOf()) { it.id }
+        spent = spent intersect still
+    }
     fun spend(id: ChoreId, write: (ChoreId) -> Unit) {
-        if (id.value in spent) return
-        spent = spent + id.value
+        if (id in spent) return
+        spent = spent + id
         write(id)
     }
 
@@ -114,7 +124,7 @@ fun ArchiveScreen(
 @Composable
 private fun ArchiveList(
     chores: List<Chore>,
-    spent: List<Long>,
+    spent: Set<ChoreId>,
     onRestore: (ChoreId) -> Unit,
     onDelete: (ChoreId) -> Unit,
     modifier: Modifier = Modifier,
@@ -124,7 +134,7 @@ private fun ArchiveList(
 
     LazyColumn(modifier = modifier.fillMaxSize()) {
         items(chores, key = { it.id.value }) { chore ->
-            val enabled = chore.id.value !in spent
+            val enabled = chore.id !in spent
             ListItem(
                 headlineContent = { Text(chore.name) },
                 supportingContent = {
@@ -136,13 +146,22 @@ private fun ArchiveList(
                     }
                 },
                 trailingContent = {
+                    // Named per row, so a screen reader says which chore a Delete is for
+                    // rather than reading the same two buttons down the list. The visible word
+                    // is cleared, as on the agenda's add button, so it is not read twice.
+                    val deleteLabel = stringResource(R.string.delete_named, chore.name)
+                    val restoreLabel = stringResource(R.string.restore_named, chore.name)
                     Row {
-                        TextButton(onClick = { onDelete(chore.id) }, enabled = enabled) {
-                            Text(stringResource(R.string.delete))
-                        }
-                        TextButton(onClick = { onRestore(chore.id) }, enabled = enabled) {
-                            Text(stringResource(R.string.restore))
-                        }
+                        TextButton(
+                            onClick = { onDelete(chore.id) },
+                            enabled = enabled,
+                            modifier = Modifier.semantics { contentDescription = deleteLabel },
+                        ) { Text(stringResource(R.string.delete), modifier = Modifier.clearAndSetSemantics {}) }
+                        TextButton(
+                            onClick = { onRestore(chore.id) },
+                            enabled = enabled,
+                            modifier = Modifier.semantics { contentDescription = restoreLabel },
+                        ) { Text(stringResource(R.string.restore), modifier = Modifier.clearAndSetSemantics {}) }
                     }
                 },
             )

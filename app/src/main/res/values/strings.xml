@@ -54,6 +54,8 @@
     <string name="archived_on">Archived %1$s</string>
     <string name="restore">Restore</string>
     <string name="delete">Delete</string>
+    <string name="restore_named">Restore %1$s</string>
+    <string name="delete_named">Delete %1$s</string>
     <string name="delete_chore_title">Delete \u201C%1$s\u201D?</string>
     <string name="delete_chore_body">Its history goes with it. This cannot be undone.</string>
 

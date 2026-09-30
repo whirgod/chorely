@@ -279,11 +279,35 @@ class StoredChoresTest {
         val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
         travelTo("2026-09-19")
         chores.complete(id)
+        chores.archive(id)
 
         chores.delete(id)
 
         assertNull(chores.detail(id).first())
-        assertTrue(chores.agenda().first().isEmpty)
+        assertTrue(chores.archived().first().isEmpty())
+    }
+
+    @Test
+    fun `deleting a chore that is not archived leaves it and its history`() = runTest {
+        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
+        travelTo("2026-09-19")
+        chores.complete(id)
+
+        chores.delete(id)
+
+        assertEquals(1, chores.detail(id).first()!!.history.size)
+    }
+
+    @Test
+    fun `archiving an archived chore keeps the moment it was first archived`() = runTest {
+        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
+        chores.archive(id)
+        val first = chores.archived().first().single().archivedAt
+        travelTo("2026-09-20")
+
+        chores.archive(id)
+
+        assertEquals(first, chores.archived().first().single().archivedAt)
     }
 
     private fun StoredChores(store: ChoreStore, clock: () -> Clock): Chores =

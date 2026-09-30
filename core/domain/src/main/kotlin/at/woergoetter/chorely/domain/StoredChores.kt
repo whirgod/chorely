@@ -108,6 +108,8 @@ class StoredChores(
 
     override suspend fun archive(id: ChoreId): Unit = store.transact { edit ->
         val (record, _) = edit.caughtUp(id) ?: return@transact
+        // Archiving twice keeps the first moment, which is what the archive sorts and shows.
+        if (record.chore.isArchived) return@transact
         edit.update(record.chore.copy(archivedAt = clock.instant()))
     }
 
@@ -122,7 +124,12 @@ class StoredChores(
         edit.update(record.chore.copy(archivedAt = null, anchoredOn = anchoredOn))
     }
 
-    override suspend fun delete(id: ChoreId): Unit = store.transact { edit -> edit.delete(id) }
+    override suspend fun delete(id: ChoreId): Unit = store.transact { edit ->
+        // Only from the archive: deleting is the way out of it, and an active chore's history
+        // is not something a stray caller may discard in one call.
+        val record = edit.book().record(id) ?: return@transact
+        if (record.chore.isArchived) edit.delete(id)
+    }
 
     private suspend fun resolve(id: ChoreId, resolution: (LocalDate, java.time.Instant) -> Resolution): Unit =
         store.transact { edit ->

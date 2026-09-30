@@ -53,12 +53,12 @@ interface Chores {
     /** Resolves the outstanding occurrence as deliberately passed over. */
     suspend fun skip(id: ChoreId)
 
-    /** Stops the chore falling due, keeping its history. */
+    /** Stops the chore falling due, keeping its history. Archiving it again changes nothing. */
     suspend fun archive(id: ChoreId)
 
     /** Un-archives, with the outstanding occurrence recomputed from today. A chore that is not archived is left as it is. */
     suspend fun restore(id: ChoreId)
 
-    /** Discards the chore and its history. Not undoable. */
+    /** Discards an archived chore and its history. Not undoable. An active chore is left as it is. */
     suspend fun delete(id: ChoreId)
 }

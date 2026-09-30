@@ -114,6 +114,7 @@ class RoomChoreStoreTest {
         val chores = chores("2026-09-19")
         val id = chores.add(ChoreDraft("Vacuum", Recurrence.OnWeekdays(setOf(DayOfWeek.SATURDAY))))
         chores.complete(id)
+        chores.archive(id)
 
         chores.delete(id)
 
