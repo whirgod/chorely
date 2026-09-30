@@ -64,4 +64,20 @@ class DigestScheduleTest {
         assertEquals(LocalDate.parse("2026-03-29"), firesAt.toLocalDate())
         assertEquals(LocalTime.of(3, 30), firesAt.toLocalTime())
     }
+
+    @Test
+    fun `today's digest time has passed once it is reached`() {
+        assertEquals(false, isPastTodaysDigest(LocalTime.of(19, 0), clockAt("2026-09-16T18:59")))
+        assertEquals(true, isPastTodaysDigest(LocalTime.of(19, 0), clockAt("2026-09-16T19:00")))
+        assertEquals(true, isPastTodaysDigest(LocalTime.of(19, 0), clockAt("2026-09-16T23:59")))
+    }
+
+    @Test
+    fun `today's digest time is read in the zone the clock is in`() {
+        // 16:00 in Vienna is 10:00 in New York: an 08:00 reminder has passed there, 18:00 not.
+        val newYork = clockAt("2026-09-16T10:00", ZoneId.of("America/New_York"))
+
+        assertEquals(true, isPastTodaysDigest(LocalTime.of(8, 0), newYork))
+        assertEquals(false, isPastTodaysDigest(LocalTime.of(18, 0), newYork))
+    }
 }

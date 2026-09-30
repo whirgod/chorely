@@ -129,18 +129,24 @@ class BootPathTest {
         assertEquals(ListenableWorker.Result.failure(), worker.doWork())
     }
 
+    // One test per action rather than a loop: the sync is unique work with KEEP, and a second
+    // broadcast landing before the first sync has been marked finished would be dropped.
+    // Only that the sync happens, too: a test cannot move the device's zone to watch the
+    // digest re-aim, and the arithmetic is unit-tested in DigestScheduleTest.
+
     @Test
-    fun aTimezoneOrClockChangeResyncs() = runBlocking {
-        // Only that the sync happens: a test cannot move the device's zone to watch the digest
-        // re-aim, and nextDigestDelay's arithmetic is unit-tested on its own.
+    fun aTimezoneChangeResyncs() = resyncsOn(Intent.ACTION_TIMEZONE_CHANGED)
+
+    @Test
+    fun aClockChangeResyncs() = resyncsOn(Intent.ACTION_TIME_CHANGED)
+
+    private fun resyncsOn(action: String) = runBlocking {
         settings.time.value = LocalTime.now(clock).plusHours(2).withSecond(0).withNano(0)
 
-        for (action in listOf(Intent.ACTION_TIMEZONE_CHANGED, Intent.ACTION_TIME_CHANGED)) {
-            val before = events.snapshot().size
-            BootReceiver().onReceive(context, Intent(action))
-            eventually { events.snapshot().size > before }
-            assertEquals("$action", listOf("sync"), events.snapshot().drop(before))
-        }
+        BootReceiver().onReceive(context, Intent(action))
+
+        eventually { events.snapshot().isNotEmpty() }
+        assertEquals(listOf("sync"), events.snapshot())
         workManager.awaitPendingDigest()
         Unit
     }
@@ -162,8 +168,25 @@ class BootPathTest {
     }
 
     @Test
-    fun aDigestWaitingOutARetryIsRunNotSkippedToTomorrow() = runBlocking {
+    fun aDigestPastItsTimeIsReaimedWhenTodaysReminderIsStillAhead() = runBlocking {
+        // Held past its time, then the reminder is moved later in the day: running it now
+        // and again at the new time would be two digests today.
+        settings.time.value = LocalTime.now(clock).plusSeconds(2)
+        reminders.get().sync()
+        val held = workManager.awaitPendingDigest()
+        eventually { System.currentTimeMillis() > held.nextScheduleTimeMillis }
+
         settings.time.value = LocalTime.now(clock).plusHours(2).withSecond(0).withNano(0)
+        reminders.get().sync()
+
+        workManager.awaitPendingDigest { it.id != held.id }
+        assertTrue("it must not run now: ${events.snapshot()}", "due" !in events.snapshot())
+    }
+
+    @Test
+    fun aDigestWaitingOutARetryIsRunNotSkippedToTomorrow() = runBlocking {
+        // Midnight, which has always passed today: a digest only retries once its time has come.
+        settings.time.value = LocalTime.MIDNIGHT
         chores.dueResult = { error("database unavailable") }
         reminders.get().sync()
         val scheduled = workManager.awaitPendingDigest()

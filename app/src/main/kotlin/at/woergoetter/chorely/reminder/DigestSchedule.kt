@@ -26,3 +26,17 @@ internal fun nextDigestDelay(reminderTime: LocalTime, deviceClock: Clock): Durat
         .atTime(reminderTime).atZone(clock.zone).toInstant()
     return Duration.between(now, next)
 }
+
+/**
+ * Whether today's digest time has already come, in the zone the device is in now — so that a
+ * digest still pending is owed today rather than waiting for a time still ahead.
+ *
+ * The line between "run the pending digest now" and "re-aim it": moving the reminder later
+ * in the day, or arriving somewhere it is not that time yet, re-aims to the time still ahead
+ * — one digest today, not an early one and then the real one.
+ */
+internal fun isPastTodaysDigest(reminderTime: LocalTime, deviceClock: Clock): Boolean {
+    val clock = deviceClock.withZone(deviceClock.zone)
+    val today = LocalDate.now(clock).atTime(reminderTime).atZone(clock.zone).toInstant()
+    return !today.isAfter(clock.instant())
+}

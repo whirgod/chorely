@@ -35,13 +35,18 @@ class WorkManagerReminders @Inject constructor(
             return
         }
         // A digest already owed runs now rather than being re-aimed at tomorrow: one past its
-        // time but held back by Doze, or one waiting out a retry's backoff. A clock correction,
-        // a zone change or a reboot arriving then would otherwise throw today's away. Not the
-        // running digest's own closing sync, which sees itself RUNNING, not ENQUEUED.
+        // time but held back by Doze, or one waiting out a retry's backoff, on a day whose
+        // reminder time has come. A clock correction, a zone change or a reboot arriving then
+        // would otherwise throw today's away. Where today's time is still ahead — the reminder
+        // moved later, or a zone where it is not yet that time — re-aiming at it is the one
+        // digest today. Not the running digest's own closing sync, which sees itself RUNNING.
+        // A replaced retry starts its attempts afresh; the broadcasts that cause it are rare
+        // enough that the bound still holds in practice.
         val pending = workManager.getWorkInfosForUniqueWorkFlow(DailyDigestWorker.NAME).first()
             .singleOrNull { it.state == WorkInfo.State.ENQUEUED }
         val owed = pending != null &&
-            (pending.runAttemptCount > 0 || pending.nextScheduleTimeMillis <= clock.millis())
+            (pending.runAttemptCount > 0 || pending.nextScheduleTimeMillis <= clock.millis()) &&
+            isPastTodaysDigest(time, clock)
         workManager.enqueueUniqueWork(
             DailyDigestWorker.NAME,
             // REPLACE, so changing the reminder time moves the pending digest rather than
