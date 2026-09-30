@@ -177,4 +177,19 @@ class NavigationTest {
 
         assertEquals(listOf(AgendaRoute), stack)
     }
+
+    @Test
+    fun `a key still composed on its way out cannot be pushed again`() {
+        val stack = stackOf(AgendaRoute, ChoreEditorRoute())
+        val navigator = Navigator(stack)
+        navigator.onComposed(ChoreEditorRoute())
+        navigator.back(from = ChoreEditorRoute())
+
+        navigator.go(from = AgendaRoute, to = ChoreEditorRoute())
+        assertEquals(listOf(AgendaRoute), stack)
+
+        navigator.onDisposed(ChoreEditorRoute())
+        navigator.go(from = AgendaRoute, to = ChoreEditorRoute())
+        assertEquals(listOf(AgendaRoute, ChoreEditorRoute()), stack)
+    }
 }

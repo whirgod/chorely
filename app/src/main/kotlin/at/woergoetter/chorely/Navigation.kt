@@ -3,6 +3,7 @@ package at.woergoetter.chorely
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -11,6 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -90,6 +92,9 @@ internal fun MutableList<NavKey>.go(key: NavKey) {
 @Stable
 class Navigator(private val stack: MutableList<NavKey>) {
 
+    /** The stack NavDisplay shows; read from here so the guards and the display cannot differ. */
+    val backStack: List<NavKey> get() = stack
+
     /** The top as of its last resume; cleared whenever the top changes. */
     private var settledTop: NavKey? by mutableStateOf(stack.lastOrNull())
 
@@ -115,9 +120,29 @@ class Navigator(private val stack: MutableList<NavKey>) {
         if (isActive(from)) changeTop { stack.back() }
     }
 
-    /** [from] opening [to]; refused unless [from] is on top. */
+    /**
+     * How many compositions of each key exist, on screen or animating off it. Nav3 hands an
+     * equal key back the composition still sliding out, latches closed and form filled in, so
+     * a push of one is refused until it has gone.
+     */
+    private val composed = mutableStateMapOf<NavKey, Int>()
+
+    /** [from] opening [to]; refused unless [from] is on top, and while [to] is still leaving. */
     fun go(from: NavKey, to: NavKey) {
-        if (isActive(from)) changeTop { stack.go(to) }
+        if (!isActive(from)) return
+        if (to !in stack && (composed[to] ?: 0) > 0) return
+        changeTop { stack.go(to) }
+    }
+
+    /** Called when a composition of [key] enters the display. */
+    fun onComposed(key: NavKey) {
+        composed[key] = (composed[key] ?: 0) + 1
+    }
+
+    /** Called when a composition of [key] leaves the display. */
+    fun onDisposed(key: NavKey) {
+        val left = (composed[key] ?: 0) - 1
+        if (left > 0) composed[key] = left else composed.remove(key)
     }
 
     /** The system back gesture or button; refused until the top has settled. */
@@ -149,7 +174,7 @@ fun ChorelyNavigation() {
     val backStack = rememberNavBackStack(AgendaRoute)
     val navigator = remember(backStack) { Navigator(backStack) }
 
-    GuardedNavDisplay(navigator, backStack) {
+    GuardedNavDisplay(navigator) {
         entry<AgendaRoute> { key ->
             AgendaScreen(
                 viewModel = hiltViewModel(),
@@ -210,7 +235,6 @@ fun ChorelyNavigation() {
 @Composable
 fun GuardedNavDisplay(
     navigator: Navigator,
-    backStack: List<NavKey>,
     blockOffTop: Boolean = true,
     entries: EntryProviderScope<NavKey>.() -> Unit,
 ) {
@@ -219,6 +243,10 @@ fun GuardedNavDisplay(
         { key ->
             val entry = provider(key)
             NavEntry(navEntry = entry) { _: NavKey ->
+                DisposableEffect(key, navigator) {
+                    navigator.onComposed(key)
+                    onDispose { navigator.onDisposed(key) }
+                }
                 LifecycleResumeEffect(key, navigator) {
                     navigator.onResumed(key)
                     onPauseOrDispose { navigator.onPaused(key) }
@@ -238,13 +266,17 @@ fun GuardedNavDisplay(
                                 }
                             }
                         }
+                        // Focus is refused below, but a scrolling list is a focus target of its
+                        // own and lets its children be focused regardless; a key event reaching
+                        // one is stopped here on its way down instead.
+                        .onPreviewKeyEvent { blockOffTop && !navigator.isActive(key) }
                         .then(if (inert) Inert else Modifier),
                 ) { entry.Content() }
             }
         }
     }
     NavDisplay(
-        backStack = backStack,
+        backStack = navigator.backStack,
         onBack = { navigator.systemBack() },
         // Without the ViewModelStore decorator every hiltViewModel() below resolves against
         // the Activity's store: one instance per type shared by every entry, never cleared

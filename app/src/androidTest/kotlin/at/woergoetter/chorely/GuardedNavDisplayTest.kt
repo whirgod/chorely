@@ -1,6 +1,5 @@
 package at.woergoetter.chorely
 
-import android.os.Build
 import androidx.activity.BackEventCompat
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Column
@@ -20,7 +19,6 @@ import androidx.navigation3.runtime.NavKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -56,7 +54,7 @@ class GuardedNavDisplayTest {
         stack.addAll(keys)
         rule.setContent {
             navigator = remember { Navigator(stack) }
-            GuardedNavDisplay(navigator, stack, blockOffTop) {
+            GuardedNavDisplay(navigator, blockOffTop) {
                 for (key in listOf(A, B, C)) {
                     addEntryProvider(key) { Screen(key) }
                 }
@@ -218,24 +216,39 @@ class GuardedNavDisplayTest {
     @Test
     fun aPredictiveBackGesturePopsASettledScreen() {
         // The gesture seeks NavDisplay's transition as it goes, which holds the top entry at
-        // STARTED until it commits — the settled screen must not stop counting as settled.
-        // Progress events exist from API 34; CI's API 26 emulator skips this.
-        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-        show(A, B)
+        // STARTED until it commits: the settled screen must not stop counting as settled.
+        // Dispatched in-process, so it runs on every API level, CI's included. B is settled by
+        // a real push and its own resume, not by the state the navigator starts in.
+        show(A)
+        click("A open B")
+        rule.waitForIdle()
 
         rule.runOnUiThread {
             val dispatcher = rule.activity.onBackPressedDispatcher
             dispatcher.dispatchOnBackStarted(BackEventCompat(0f, 500f, 0f, BackEventCompat.EDGE_LEFT))
-            dispatcher.dispatchOnBackProgressed(BackEventCompat(100f, 500f, 0.3f, BackEventCompat.EDGE_LEFT))
+            dispatcher.dispatchOnBackProgressed(BackEventCompat(300f, 500f, 0.5f, BackEventCompat.EDGE_LEFT))
         }
         rule.waitForIdle()
-        rule.runOnUiThread {
-            val dispatcher = rule.activity.onBackPressedDispatcher
-            dispatcher.dispatchOnBackProgressed(BackEventCompat(300f, 500f, 0.8f, BackEventCompat.EDGE_LEFT))
-            dispatcher.onBackPressed()
-        }
+        // The gesture reached NavDisplay: the screen behind is being revealed.
+        rule.onNodeWithText("screen A", useUnmergedTree = true).assertExists()
+        rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
         settle()
 
         assertEquals(listOf(A), stack)
+    }
+
+    @Test
+    fun aScreenStillLeavingCannotBeReopenedOntoItsDepartingSelf() {
+        show(A, B)
+
+        midTransition { click("B back") }
+        click("A open B")
+        settle()
+
+        // Refused while B was still composed on its way out; B's next opening is a fresh one.
+        assertEquals(listOf(A), stack)
+        click("A open B")
+        settle()
+        assertEquals(listOf(A, B), stack)
     }
 }
