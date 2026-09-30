@@ -58,17 +58,18 @@ class StoredChores(
         book.chores.map { it.chore }.filter { it.isArchived }.sortedByDescending { it.archivedAt }
     }
 
-    override suspend fun due(): List<DueChore> {
+    override suspend fun due(): DueToday {
         val clock = pinned()
         val today = LocalDate.now(clock)
         val book = store.transact { it.book() }
-        return book.active()
+        val chores = book.active()
             .map { it.dueChore(book.seenThrough, clock) }
             .filter { it.dueDate <= today }
             .sortedWith(byDueDateThenName)
+        return DueToday(today, chores)
     }
 
-    override suspend fun markSeen(): Unit = store.transact { edit ->
+    override suspend fun markSeen(through: LocalDate?): Unit = store.transact { edit ->
         val clock = pinned()
         val book = edit.book()
         book.active().forEach { record ->
@@ -77,8 +78,8 @@ class StoredChores(
         }
         // Never backwards: a move to a zone further west makes "today" earlier, and the
         // record of what the user has been shown must not un-show anything.
-        val today = LocalDate.now(clock)
-        edit.markSeen(book.seenThrough?.let { maxOf(it, today) } ?: today)
+        val shown = through ?: LocalDate.now(clock)
+        edit.markSeen(book.seenThrough?.let { maxOf(it, shown) } ?: shown)
     }
 
     override suspend fun add(draft: ChoreDraft): ChoreId = store.transact { edit ->

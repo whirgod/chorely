@@ -6,7 +6,7 @@ import at.woergoetter.chorely.domain.ChoreDetail
 import at.woergoetter.chorely.domain.ChoreDraft
 import at.woergoetter.chorely.domain.ChoreId
 import at.woergoetter.chorely.domain.Chores
-import at.woergoetter.chorely.domain.DueChore
+import at.woergoetter.chorely.domain.DueToday
 import at.woergoetter.chorely.domain.Recurrence
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -128,9 +128,9 @@ private class FakeArchiveChores : Chores {
 
     override fun detail(id: ChoreId): Flow<ChoreDetail?> = unused()
 
-    override suspend fun due(): List<DueChore> = unused()
+    override suspend fun due(): DueToday = unused()
 
-    override suspend fun markSeen() = unused()
+    override suspend fun markSeen(through: LocalDate?) = unused()
 
     override suspend fun add(draft: ChoreDraft): ChoreId = unused()
 

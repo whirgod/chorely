@@ -12,6 +12,7 @@ import at.woergoetter.chorely.domain.ChoreDraft
 import at.woergoetter.chorely.domain.ChoreId
 import at.woergoetter.chorely.domain.Chores
 import at.woergoetter.chorely.domain.DueChore
+import at.woergoetter.chorely.domain.DueToday
 import at.woergoetter.chorely.domain.ReminderSettings
 import dagger.Binds
 import dagger.Module
@@ -22,6 +23,7 @@ import dagger.hilt.testing.TestInstallIn
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.Clock
+import java.time.LocalDate
 import java.time.LocalTime
 import java.util.Collections
 import javax.inject.Inject
@@ -99,13 +101,19 @@ class FakeChores @Inject constructor(private val events: Events) : Chores {
     @Volatile
     var dueResult: () -> List<DueChore> = { emptyList() }
 
-    override suspend fun due(): List<DueChore> {
+    /** The day `due()` reports; `markSeen` is asserted to be told this one. */
+    val today: LocalDate = LocalDate.of(2026, 9, 16)
+
+    var seenThrough: LocalDate? = null
+
+    override suspend fun due(): DueToday {
         events.record("due")
-        return dueResult()
+        return DueToday(today, dueResult())
     }
 
-    override suspend fun markSeen() {
+    override suspend fun markSeen(through: LocalDate?) {
         events.record("markSeen")
+        seenThrough = through
     }
 
     override fun agenda(): Flow<Agenda> = unused()

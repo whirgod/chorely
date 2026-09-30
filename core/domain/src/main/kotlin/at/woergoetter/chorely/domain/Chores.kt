@@ -1,6 +1,7 @@
 package at.woergoetter.chorely.domain
 
 import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
 
 /**
  * The whole of Chorely's behaviour, as the app sees it.
@@ -32,17 +33,22 @@ interface Chores {
     fun archived(): Flow<List<Chore>>
 
     /**
-     * What the daily digest should list: overdue and due today, soonest first.
-     * Empty means the digest stays silent.
+     * What the daily digest should list: overdue and due today, soonest first, with the day
+     * that "today" was. No chores means the digest stays silent.
      */
-    suspend fun due(): List<DueChore>
+    suspend fun due(): DueToday
 
     /**
-     * Records that the user has now been shown what is due, and writes the auto-skips
-     * that fact makes real. Called when the overview is displayed and after the daily
-     * digest has actually been posted — never merely because a background job ran.
+     * Records that the user has now been shown what is due through [through], and writes the
+     * auto-skips that fact makes real. Called when the overview is displayed and after the
+     * daily digest has actually been posted — never merely because a background job ran.
+     *
+     * [through] defaults to today, which is right for the overview: it shows every active
+     * chore's outstanding occurrence, whatever day it is. The digest shows only what was due
+     * on the day [due] worked out, and passes that day — a midnight or a zone change between
+     * the two calls must not record the next day as seen. Never moves backwards.
      */
-    suspend fun markSeen()
+    suspend fun markSeen(through: LocalDate? = null)
 
     suspend fun add(draft: ChoreDraft): ChoreId
 

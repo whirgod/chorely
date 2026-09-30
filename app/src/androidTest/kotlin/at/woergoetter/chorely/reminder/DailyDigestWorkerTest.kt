@@ -72,6 +72,8 @@ class DailyDigestWorkerTest {
         chores.dueResult = { listOf(dueChore()) }
 
         assertEquals(listOf("due", "post", "markSeen", "sync"), runDigest())
+        // Through the day due() worked the list out for, not whatever day it is by now.
+        assertEquals(chores.today, chores.seenThrough)
     }
 
     @Test

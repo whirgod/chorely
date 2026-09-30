@@ -145,7 +145,7 @@ class StoredChoresTest {
         chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
         travelTo("2026-09-19")
 
-        val due = chores.due()
+        val due = chores.due().chores
 
         assertEquals(listOf("Kettle", "Vacuum"), due.map { it.chore.name })
     }
@@ -154,7 +154,7 @@ class StoredChoresTest {
     fun `the digest is empty when nothing is due, so the reminder stays silent`() = runTest {
         chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
 
-        assertTrue(chores.due().isEmpty())
+        assertTrue(chores.due().chores.isEmpty())
     }
 
     @Test
@@ -319,6 +319,21 @@ class StoredChoresTest {
         // all is a separate question (see TODO.md), and this one is only about writes.
         assertTrue(store.history(id).first().isEmpty())
         assertEquals(before, chores.archived().first().single())
+    }
+
+    @Test
+    fun `a digest's markSeen is through the day it listed, not a midnight later`() = runTest {
+        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY, SUNDAY)))
+        // The Saturday digest is worked out; midnight passes before it is marked seen.
+        travelTo("2026-09-19")
+        val due = chores.due()
+        travelTo("2026-09-20")
+        chores.markSeen(through = due.day)
+
+        // Saturday was shown, so it lapses once Sunday is due; Sunday was not, so it waits
+        // rather than lapsing when the next Saturday comes.
+        travelTo("2026-09-26")
+        assertEquals(date("2026-09-20"), chores.detail(id).first()!!.outstanding.dueDate)
     }
 
     @Test

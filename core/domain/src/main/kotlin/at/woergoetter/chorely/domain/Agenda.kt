@@ -11,6 +11,15 @@ data class DueChore(
 }
 
 /**
+ * What the daily digest lists, and the [day] it was worked out for — the day a digest showing
+ * it has shown the user through, which is what [Chores.markSeen] is then told.
+ */
+data class DueToday(
+    val day: LocalDate,
+    val chores: List<DueChore>,
+)
+
+/**
  * What is due, split the way the overview screen shows it. Every list is sorted by due
  * date, then by name, so the UI never has to sort and two screens cannot disagree.
  */
