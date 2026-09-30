@@ -1,13 +1,18 @@
 package at.woergoetter.chorely
 
+import android.os.Build
+import androidx.activity.BackEventCompat
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
@@ -15,6 +20,7 @@ import androidx.navigation3.runtime.NavKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,6 +32,8 @@ import org.junit.runner.RunWith
  *
  * The clock is stopped a moment into each transition, and clicks go through the semantics
  * action rather than a touch, so they reach the departing screen however the two overlap.
+ * Nodes are found in the unmerged tree, because a departing screen clears its semantics —
+ * a finder looking where an accessibility service does would not see it at all.
  * Every guard has a control, a settled case where the same input does act, so a guard cannot
  * pass merely because the input never arrived.
  */
@@ -44,11 +52,11 @@ class GuardedNavDisplayTest {
     private val poked = mutableListOf<NavKey>()
     private lateinit var navigator: Navigator
 
-    private fun show(vararg keys: NavKey) {
+    private fun show(vararg keys: NavKey, blockOffTop: Boolean = true) {
         stack.addAll(keys)
         rule.setContent {
             navigator = remember { Navigator(stack) }
-            GuardedNavDisplay(navigator, stack) {
+            GuardedNavDisplay(navigator, stack, blockOffTop) {
                 for (key in listOf(A, B, C)) {
                     addEntryProvider(key) { Screen(key) }
                 }
@@ -61,17 +69,21 @@ class GuardedNavDisplayTest {
     private fun Screen(key: NavKey) {
         Column {
             Text("screen $key")
-            Button(onClick = { navigator.back(from = key) }) { Text("$key back") }
-            Button(onClick = { if (navigator.isActive(key)) acted += key }) { Text("$key act") }
+            Button(onClick = { navigator.back(from = key) }, Modifier.testTag("$key back")) { Text("$key back") }
+            Button(onClick = { if (navigator.isActive(key)) acted += key }, Modifier.testTag("$key act")) {
+                Text("$key act")
+            }
             // Ungated, as the agenda's and the settings screen's controls are: only the
             // display's touch blocking stands between it and a tap on a departing screen.
-            Button(onClick = { poked += key }) { Text("$key poke") }
-            Button(onClick = { navigator.go(from = key, to = B) }) { Text("$key open B") }
+            Button(onClick = { poked += key }, Modifier.testTag("$key poke")) { Text("$key poke") }
+            Button(onClick = { navigator.go(from = key, to = B) }, Modifier.testTag("$key open B")) {
+                Text("$key open B")
+            }
         }
     }
 
     private fun click(label: String) {
-        rule.onNodeWithText(label).performSemanticsAction(SemanticsActions.OnClick)
+        rule.onNodeWithTag(label, useUnmergedTree = true).performSemanticsAction(SemanticsActions.OnClick)
     }
 
     private fun systemBack() {
@@ -105,7 +117,7 @@ class GuardedNavDisplayTest {
         show(A, B, C)
 
         midTransition { click("C back") }
-        rule.onNodeWithText("screen C").assertExists() // still leaving
+        rule.onNodeWithText("screen C", useUnmergedTree = true).assertExists() // still leaving
         systemBack()
         settle()
 
@@ -126,7 +138,10 @@ class GuardedNavDisplayTest {
         show(A, B)
 
         midTransition { systemBack() }
-        rule.onNodeWithText("screen B").assertExists() // still leaving
+        rule.onNodeWithText("screen B", useUnmergedTree = true).assertExists() // still leaving
+        // Gone from the tree an accessibility service reads, so TalkBack cannot activate it...
+        rule.onNodeWithText("B act").assertDoesNotExist()
+        // ...and an action reaching it anyway, as this one does, is refused by the gate.
         click("B act")
         click("B back")
         settle()
@@ -175,15 +190,52 @@ class GuardedNavDisplayTest {
     }
 
     @Test
-    fun aDepartingScreenTakesNoTouches() {
-        show(A, B)
-        rule.onNodeWithText("B poke").performClick()
-        assertEquals("control: a settled screen takes the touch", listOf<NavKey>(B), poked)
+    fun controlADepartingScreenWouldTakeTheTouchWithoutTheBlock() {
+        // The same touch as below, with only the block switched off: it does land on B, so the
+        // test below passing is the block's doing and not the two screens' layering.
+        show(A, B, blockOffTop = false)
 
         midTransition { systemBack() }
-        rule.onNodeWithText("B poke").performClick()
+        rule.onNodeWithTag("B poke", useUnmergedTree = true).performClick()
         settle()
 
         assertEquals(listOf<NavKey>(B), poked)
+    }
+
+    @Test
+    fun aDepartingScreenTakesNoTouches() {
+        show(A, B)
+        rule.onNodeWithTag("B poke", useUnmergedTree = true).performClick()
+        assertEquals("control: a settled screen takes the touch", listOf<NavKey>(B), poked)
+
+        midTransition { systemBack() }
+        rule.onNodeWithTag("B poke", useUnmergedTree = true).performClick()
+        settle()
+
+        assertEquals(listOf<NavKey>(B), poked)
+    }
+
+    @Test
+    fun aPredictiveBackGesturePopsASettledScreen() {
+        // The gesture seeks NavDisplay's transition as it goes, which holds the top entry at
+        // STARTED until it commits — the settled screen must not stop counting as settled.
+        // Progress events exist from API 34; CI's API 26 emulator skips this.
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+        show(A, B)
+
+        rule.runOnUiThread {
+            val dispatcher = rule.activity.onBackPressedDispatcher
+            dispatcher.dispatchOnBackStarted(BackEventCompat(0f, 500f, 0f, BackEventCompat.EDGE_LEFT))
+            dispatcher.dispatchOnBackProgressed(BackEventCompat(100f, 500f, 0.3f, BackEventCompat.EDGE_LEFT))
+        }
+        rule.waitForIdle()
+        rule.runOnUiThread {
+            val dispatcher = rule.activity.onBackPressedDispatcher
+            dispatcher.dispatchOnBackProgressed(BackEventCompat(300f, 500f, 0.8f, BackEventCompat.EDGE_LEFT))
+            dispatcher.onBackPressed()
+        }
+        settle()
+
+        assertEquals(listOf(A), stack)
     }
 }

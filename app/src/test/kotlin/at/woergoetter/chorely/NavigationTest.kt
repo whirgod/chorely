@@ -165,4 +165,16 @@ class NavigationTest {
 
         assertEquals(true, navigator.isSettled)
     }
+
+    @Test
+    fun `a pause does not unsettle the top, as a predictive back gesture pauses it`() {
+        val stack = stackOf(AgendaRoute, ChoreRoute(1))
+        val navigator = Navigator(stack)
+        navigator.onResumed(ChoreRoute(1))
+
+        navigator.onPaused(ChoreRoute(1))
+        navigator.systemBack()
+
+        assertEquals(listOf(AgendaRoute), stack)
+    }
 }

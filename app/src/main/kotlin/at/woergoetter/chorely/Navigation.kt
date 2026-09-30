@@ -4,11 +4,16 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -68,47 +73,74 @@ internal fun MutableList<NavKey>.go(key: NavKey) {
  * A screen popping itself before it has settled stays allowed — the editor finding its chore
  * gone while it is still sliding in has to be able to leave.
  *
- * Settled means resumed. NavDisplay holds every entry at `STARTED` for the length of a
- * transition and resumes the one on top once it ends, so the entry's own resumed state is the
- * answer — rather than a record of which entry settled last, which a quick pop can make match
- * the new top while it is still mid-transition, and which an entry that never left `RESUMED`
- * would never update.
+ * Settled means the top has resumed since it became the top. NavDisplay holds every entry at
+ * `STARTED` for the length of a transition and resumes the one on top once it ends, so that
+ * resume is the moment it has arrived. Two things this deliberately does not mean:
+ *
+ * - "Resumed right now". A predictive back gesture seeks the transition as the finger moves,
+ *   which pauses the settled top until the gesture commits — and the gesture must not be
+ *   refused for the pause it caused itself. Nor must a system dialog's pause of the activity.
+ * - "The last entry to settle". A quick pop can make that match the new top while it is still
+ *   sliding in, which is exactly the early back this exists to refuse.
+ *
+ * Only a change of top clears it. An entry popped and pushed back before NavDisplay
+ * recomposed never left `RESUMED`, so no resume will come; one resumed right now is settled
+ * too, which is what keeps that from locking back out for good.
  */
 @Stable
 class Navigator(private val stack: MutableList<NavKey>) {
 
-    /** The entries whose lifecycle is `RESUMED` right now, as reported by [GuardedNavDisplay]. */
-    private val resumed = mutableStateMapOf<NavKey, Unit>()
+    /** The top as of its last resume; cleared whenever the top changes. */
+    private var settledTop: NavKey? by mutableStateOf(stack.lastOrNull())
+
+    /**
+     * How many live compositions of each key are `RESUMED` right now. Counted rather than a
+     * set, so that two compositions of equal keys — a pane layout, say — cannot un-resume each
+     * other.
+     */
+    private val resumed = mutableStateMapOf<NavKey, Int>()
 
     /** Whether [key] is on top, and so may still act: a screen off the top is on its way out. */
     fun isActive(key: NavKey): Boolean = stack.lastOrNull() == key
 
     /** Whether the top entry has finished arriving. */
-    val isSettled: Boolean get() = stack.lastOrNull()?.let { it in resumed } ?: false
+    val isSettled: Boolean
+        get() {
+            val top = stack.lastOrNull() ?: return false
+            return top == settledTop || (resumed[top] ?: 0) > 0
+        }
 
     /** [from] leaving itself; refused unless it is on top. */
     fun back(from: NavKey) {
-        if (isActive(from)) stack.back()
+        if (isActive(from)) changeTop { stack.back() }
     }
 
     /** [from] opening [to]; refused unless [from] is on top. */
     fun go(from: NavKey, to: NavKey) {
-        if (isActive(from)) stack.go(to)
+        if (isActive(from)) changeTop { stack.go(to) }
     }
 
     /** The system back gesture or button; refused until the top has settled. */
     fun systemBack() {
-        if (isSettled) stack.back()
+        if (isSettled) changeTop { stack.back() }
     }
 
     /** Called when [key]'s entry resumes. */
     fun onResumed(key: NavKey) {
-        resumed[key] = Unit
+        resumed[key] = (resumed[key] ?: 0) + 1
+        if (isActive(key)) settledTop = key
     }
 
     /** Called when [key]'s entry pauses or leaves composition. */
     fun onPaused(key: NavKey) {
-        resumed.remove(key)
+        val left = (resumed[key] ?: 0) - 1
+        if (left > 0) resumed[key] = left else resumed.remove(key)
+    }
+
+    private inline fun changeTop(edit: () -> Unit) {
+        val before = stack.lastOrNull()
+        edit()
+        if (stack.lastOrNull() != before) settledTop = null
     }
 }
 
@@ -163,11 +195,14 @@ fun ChorelyNavigation() {
 /**
  * NavDisplay with [navigator]'s guards wired in: system back goes through
  * [Navigator.systemBack], each entry reports its lifecycle to the navigator, an entry off the
- * top takes no touches, and a back that NavDisplay would not intercept — on a one-entry stack,
+ * top takes no input, and a back that NavDisplay would not intercept — on a one-entry stack,
  * where the activity would finish — is swallowed until the top has settled.
  *
- * Blocking touches here covers every screen, including any added later; the screens that
- * write gate on [Navigator.isActive] as well, for input that does not arrive as a touch.
+ * "No input" is touches, focus and accessibility actions alike, so it covers every screen,
+ * including any added later, and a keyboard Enter or a TalkBack double-tap as much as a
+ * finger. The editor, chore and archive screens gate on [Navigator.isActive] as well, since
+ * their writes cannot be taken back. [blockOffTop] exists for the test that proves the block
+ * is what stops a touch.
  *
  * Separate from [ChorelyNavigation] so the guards can be tested through a real transition
  * without the app's screens.
@@ -176,10 +211,11 @@ fun ChorelyNavigation() {
 fun GuardedNavDisplay(
     navigator: Navigator,
     backStack: List<NavKey>,
+    blockOffTop: Boolean = true,
     entries: EntryProviderScope<NavKey>.() -> Unit,
 ) {
     val provider = remember(entries) { entryProvider<NavKey> { entries() } }
-    val guarded: (NavKey) -> NavEntry<NavKey> = remember(provider, navigator) {
+    val guarded: (NavKey) -> NavEntry<NavKey> = remember(provider, navigator, blockOffTop) {
         { key ->
             val entry = provider(key)
             NavEntry(navEntry = entry) { _: NavKey ->
@@ -187,7 +223,23 @@ fun GuardedNavDisplay(
                     navigator.onResumed(key)
                     onPauseOrDispose { navigator.onPaused(key) }
                 }
-                Box(if (navigator.isActive(key)) Modifier else BlockTouches) { entry.Content() }
+                val inert = blockOffTop && !navigator.isActive(key)
+                Box(
+                    // Installed once and consulted per event, so a block that starts mid-gesture
+                    // sees the whole stream rather than a node attached halfway through it.
+                    Modifier
+                        .pointerInput(key, navigator, blockOffTop) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                    if (blockOffTop && !navigator.isActive(key)) {
+                                        event.changes.forEach { it.consume() }
+                                    }
+                                }
+                            }
+                        }
+                        .then(if (inert) Inert else Modifier),
+                ) { entry.Content() }
             }
         }
     }
@@ -219,11 +271,7 @@ private fun SwallowEarlyBack(navigator: Navigator) {
     BackHandler(enabled = !navigator.isSettled) {}
 }
 
-/** Consumes every pointer event before the content sees it, so nothing under it is tapped. */
-private val BlockTouches = Modifier.pointerInput(Unit) {
-    awaitPointerEventScope {
-        while (true) {
-            awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
-        }
-    }
-}
+/** No focus and no semantics, so neither a keyboard nor an accessibility service can act. */
+private val Inert = Modifier
+    .focusProperties { canFocus = false }
+    .clearAndSetSemantics {}
