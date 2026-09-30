@@ -288,18 +288,32 @@ class StoredChoresTest {
     }
 
     @Test
-    fun `completing, skipping or editing an archived chore writes nothing`() = runTest {
+    fun `completing an archived chore writes nothing`() = runTest {
+        assertAnArchivedChoreIgnores { chores.complete(it) }
+    }
+
+    @Test
+    fun `skipping an archived chore writes nothing`() = runTest {
+        assertAnArchivedChoreIgnores { chores.skip(it) }
+    }
+
+    @Test
+    fun `editing an archived chore writes nothing`() = runTest {
+        assertAnArchivedChoreIgnores { chores.edit(it, ChoreDraft("Hoover", weekly(SUNDAY))) }
+    }
+
+    /**
+     * Archives a chore and lets three Saturdays pass with the user shown the agenda, so an
+     * active chore would now have lapses to write, then asserts [write] wrote nothing at all.
+     */
+    private suspend fun assertAnArchivedChoreIgnores(write: suspend (ChoreId) -> Unit) {
         val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
         chores.archive(id)
-        // Three Saturdays pass and the user is shown the agenda, so an active chore would now
-        // have lapses to write.
         travelTo("2026-10-08")
         chores.markSeen()
         val before = chores.archived().first().single()
 
-        chores.complete(id)
-        chores.skip(id)
-        chores.edit(id, ChoreDraft("Hoover", weekly(SUNDAY)))
+        write(id)
 
         assertTrue(chores.detail(id).first()!!.history.isEmpty())
         assertEquals(before, chores.archived().first().single())

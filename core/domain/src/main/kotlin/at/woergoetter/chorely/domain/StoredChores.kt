@@ -72,7 +72,7 @@ class StoredChores(
     }
 
     override suspend fun edit(id: ChoreId, draft: ChoreDraft): Unit = store.transact { edit ->
-        val (record, seenThrough) = edit.caughtUp(id) ?: return@transact
+        val (record, seenThrough) = edit.activeCaughtUp(id) ?: return@transact
         val previous = record.outstanding(seenThrough)
         // The new rule taken up where the old one started, so that `recomputed` is what the
         // rule gives on its own rather than what the old anchor happened to allow.
@@ -108,8 +108,8 @@ class StoredChores(
 
     override suspend fun archive(id: ChoreId): Unit = store.transact { edit ->
         // Archiving twice keeps the first moment, which is what the archive sorts and shows:
-        // caughtUp refuses an archived chore.
-        val (record, _) = edit.caughtUp(id) ?: return@transact
+        // activeCaughtUp refuses an archived chore.
+        val (record, _) = edit.activeCaughtUp(id) ?: return@transact
         edit.update(record.chore.copy(archivedAt = clock.instant()))
     }
 
@@ -133,7 +133,7 @@ class StoredChores(
 
     private suspend fun resolve(id: ChoreId, resolution: (LocalDate, java.time.Instant) -> Resolution): Unit =
         store.transact { edit ->
-            val (record, seenThrough) = edit.caughtUp(id) ?: return@transact
+            val (record, seenThrough) = edit.activeCaughtUp(id) ?: return@transact
             val due = record.outstanding(seenThrough).dueDate
             edit.append(id, listOf(resolution(due, clock.instant())))
         }
@@ -145,7 +145,7 @@ class StoredChores(
      * occurrences stopped falling due when it was archived, and catching it up would write
      * months of lapses into a history that cannot lose them.
      */
-    private suspend fun ChoreEdit.caughtUp(id: ChoreId): Pair<ChoreRecord, LocalDate?>? {
+    private suspend fun ChoreEdit.activeCaughtUp(id: ChoreId): Pair<ChoreRecord, LocalDate?>? {
         val book = book()
         val record = book.record(id)?.takeUnless { it.chore.isArchived } ?: return null
         val displaced = record.catchUp(book.seenThrough).displaced

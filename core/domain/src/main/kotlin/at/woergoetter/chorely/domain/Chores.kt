@@ -14,6 +14,11 @@ import kotlinx.coroutines.flow.Flow
  * The lapses that catch-up discovers are persisted by [markSeen] and by every mutation
  * below — which is also the only way the history can honestly record them, since a lapse
  * is only a lapse once the user has had a chance to act on it.
+ *
+ * An archived chore accrues none: its occurrences stopped falling due when it was archived.
+ * So [complete], [skip], [edit] and [archive] ignore one, silently — only [restore] and
+ * [delete] act on it — and [detail] still derives it, which is why a screen showing a chore
+ * must stop offering those actions once it reads [Chore.isArchived].
  */
 interface Chores {
 
@@ -43,14 +48,14 @@ interface Chores {
 
     /**
      * Applies [draft] and recomputes the outstanding occurrence under the new recurrence.
-     * An occurrence that was already overdue stays overdue. An archived chore is left as it is.
+     * An occurrence that was already overdue stays overdue. Ignores an archived chore.
      */
     suspend fun edit(id: ChoreId, draft: ChoreDraft)
 
-    /** Resolves the outstanding occurrence as done. Permitted before the due date; refused for an archived chore. */
+    /** Resolves the outstanding occurrence as done. Permitted before the due date. Ignores an archived chore. */
     suspend fun complete(id: ChoreId)
 
-    /** Resolves the outstanding occurrence as deliberately passed over; refused for an archived chore. */
+    /** Resolves the outstanding occurrence as deliberately passed over. Ignores an archived chore. */
     suspend fun skip(id: ChoreId)
 
     /** Stops the chore falling due, keeping its history. Archiving it again changes nothing. */
