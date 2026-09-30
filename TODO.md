@@ -48,12 +48,6 @@ constrained, so on a narrow phone with a large font the name — the only thing
 saying which chore a Delete applies to — is squeezed to a sliver. Moving the
 actions under the headline, or into an overflow menu, fixes it.
 
-**Date formatting is copied between screens**
-`ChoreScreen` and `ArchiveScreen` each build the locale-keyed MEDIUM formatter
-and each convert an `Instant` to a local date with
-`atZone(ZoneId.systemDefault())` (not `LocalDate.ofInstant`, which is API 34+).
-A third copy is the moment to lift both into a shared helper in `ui`.
-
 **Writes to an archived chore still catch it up**
 `complete`, `skip` and `edit` in
 [`StoredChores.kt`](core/domain/src/main/kotlin/at/woergoetter/chorely/domain/StoredChores.kt)
@@ -86,3 +80,15 @@ retries a failed run as a whole, up to five times, five minutes apart.
   `BootReceiver`'s KDoc already names for a reboot after the reminder time, made
   likelier by the retry window; keeping a digest already aimed at today would
   close both.
+
+**The injected clock keeps the zone the process started in**
+`DataModule.clock()` in
+[`DataModule.kt`](core/data/src/main/kotlin/at/woergoetter/chorely/data/DataModule.kt)
+is a singleton `Clock.systemDefaultZone()`, which captures the zone once, so
+after the user changes timezone with the process alive the domain derives due
+dates in the old zone while the UI (`toLocalDateHere` in
+[`ui/Dates.kt`](app/src/main/kotlin/at/woergoetter/chorely/ui/Dates.kt)) reads
+the new one. The history then says "Due Sep 29, done Sep 30" for an on-time
+completion. AGENTS.md requires the device's *current* zone.
+_Moves with it_: a clock whose `getZone()` reads `ZoneId.systemDefault()` each
+time, and a test that changes the default zone under it.
