@@ -127,6 +127,17 @@ class BootPathTest {
     }
 
     @Test
+    fun aTimezoneChangeReaimsThePendingDigest() = runBlocking {
+        settings.time.value = LocalTime.now(clock).plusHours(2).withSecond(0).withNano(0)
+
+        BootReceiver().onReceive(context, Intent(Intent.ACTION_TIMEZONE_CHANGED))
+
+        workManager.awaitPendingDigest()
+        eventually { events.snapshot().isNotEmpty() }
+        assertEquals(listOf("sync"), events.snapshot())
+    }
+
+    @Test
     fun anyOtherBroadcastIsIgnored() {
         settings.time.value = LocalTime.of(19, 0)
 

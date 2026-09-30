@@ -13,7 +13,11 @@ import java.time.LocalTime
  * days on which a local time happens twice or not at all. Everything around it is a call
  * into WorkManager, which a unit test would only be able to watch itself make.
  */
-internal fun nextDigestDelay(reminderTime: LocalTime, clock: Clock): Duration {
+internal fun nextDigestDelay(reminderTime: LocalTime, deviceClock: Clock): Duration {
+    // One zone for the whole computation: the device's clock follows a zone change, and one
+    // landing between the reads below would put the time on one zone's date and convert it in
+    // another's.
+    val clock = deviceClock.withZone(deviceClock.zone)
     val now = clock.instant()
     val today = LocalDate.now(clock).atTime(reminderTime).atZone(clock.zone).toInstant()
     // Strictly after: firing "now" for a time that has just passed would post today's digest

@@ -97,7 +97,7 @@ The reminder path is where sessions get lost. Facts that are not visible from an
 
 - Kotlin official style as enforced by `./gradlew lint`; do not hand-format against a different convention.
 - Dependency versions live only in `gradle/libs.versions.toml` — never inline a version in a `build.gradle.kts`, and never duplicate one into this file.
-- Date/time: `java.time` with both `Clock` and `ZoneId` injected into scheduling logic, so tests can advance time and change timezone.
+- Date/time: `java.time` with a `Clock` injected into scheduling logic, so tests can advance time and change timezone; the app's is `DeviceClock`, because `Clock.systemDefaultZone()` freezes the zone it was created in.
 - Due dates are whole local calendar days in the device's *current* timezone, with no correction for travel: store instants, derive local dates on read.
 - `minSdk` is 26 so Java 8's `java.time` needs no core library desugaring — lowering it means adding desugaring to both Android modules, not just changing the number — but later additions such as `LocalDate.ofInstant` are API 34+ and pass on the API 36 emulator, so only `./gradlew lint` catches them.
 - `:core:domain` must stay a plain Kotlin JVM module: if something there needs Android, it needs a port instead.

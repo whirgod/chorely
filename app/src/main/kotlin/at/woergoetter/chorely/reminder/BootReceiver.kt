@@ -9,7 +9,13 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 
 /**
- * Rebuilds the reminder schedule after a reboot.
+ * Rebuilds the reminder schedule after a reboot, and after the device's timezone or clock is
+ * changed.
+ *
+ * The second is load-bearing where the first is not: the pending digest's delay was worked out
+ * in the zone of the moment it was enqueued, so an 08:00 reminder set in Vienna would fire at
+ * 02:00 in New York. The domain follows the zone on its own (see `DeviceClock`); the schedule
+ * has to be re-aimed.
  *
  * Derives the schedule again from Room rather than restoring anything, and delegates to a
  * worker because a receiver has no business doing database I/O in its ten-second window.
@@ -27,7 +33,7 @@ import androidx.work.WorkManager
 class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+        if (intent.action !in RESYNC_ON) return
         // Unique with KEEP, so a second boot while one sync is still retrying adds nothing.
         WorkManager.getInstance(context).enqueueUniqueWork(
             ReminderSyncWorker.NAME,
@@ -35,6 +41,15 @@ class BootReceiver : BroadcastReceiver() {
             OneTimeWorkRequestBuilder<ReminderSyncWorker>()
                 .setBackoffCriteria(BackoffPolicy.LINEAR, DailyDigestWorker.RETRY_BACKOFF)
                 .build(),
+        )
+    }
+
+    private companion object {
+        /** All three are exempt from the background limits on implicit broadcasts. */
+        val RESYNC_ON = setOf(
+            Intent.ACTION_BOOT_COMPLETED,
+            Intent.ACTION_TIMEZONE_CHANGED,
+            Intent.ACTION_TIME_CHANGED,
         )
     }
 }

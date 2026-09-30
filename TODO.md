@@ -71,3 +71,11 @@ editor restored after process death, which skips the load — saves into
 to say whether it wrote, which `Chores` returns as `Unit` today; `detail()`
 could also emit null for an archived chore, so screens stop filtering it
 themselves, once the chore screen no longer relies on seeing it archive.
+
+**One operation can read two zones**
+[`StoredChores`](core/domain/src/main/kotlin/at/woergoetter/chorely/domain/StoredChores.kt)
+reads its clock's zone several times per call, and the clock now follows a
+zone change, so one landing mid-call can bucket the agenda by one day and catch
+up by another. Milliseconds wide; `nextDigestDelay` already pins the zone once.
+_Moves with it_: `clock.withZone(clock.zone)` at the top of each operation,
+passed down into the `ChoreRecord` helpers that read the member today.
