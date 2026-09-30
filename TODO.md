@@ -8,33 +8,10 @@ Ideas deliberately postponed or rejected are in [BACKLOG.md](BACKLOG.md); this
 file is only the near edge of the same list. An entry leaves here when the work
 lands, not when it is planned.
 
-Every screen is built, and everything below them is done: the recurrence and
-occurrence model, catch-up and auto-skip, the Room store, reminder scheduling
-and the digest notification. What is open is the tests around the reminder
-path.
-
-## Next
-
-**1. A test for the reminder path**
-There is none.
-[`DigestScheduleTest`](app/src/test/kotlin/at/woergoetter/chorely/reminder/DigestScheduleTest.kt)
-covers `nextDigestDelay` and nothing else, and `app` has no `androidTest`
-source set at all — though the dependencies for one (`work-testing`,
-`hilt-android-testing`, `kspAndroidTest`) are already declared.
-_Owed_: the boot path, which AGENTS.md requires a test for — `BootReceiver` to
-`ReminderSyncWorker` to `WorkManagerReminders` — and `DailyDigestWorker`'s
-post-then-`markSeen` ordering, which is the guard that stops an unseen
-occurrence lapsing.
-_Watch out_: `DailyDigestWorker` re-syncs only where `doWork` returns, so a
-throw from `chores.due()` or `notifier.post()` drops the chain for good — a
-reboot or the user changing the reminder time in settings is then the only
-thing that rebuilds it. Long-standing rather than new: the
-chore save that once called `Reminders.sync()` was never reachable from a
-placeholder editor. Left unfixed because the fix is precisely what the
-`TestDriver` test above has to assert.
-_Moves with it_: `ci.yml`'s `instrumented-tests` job runs only
-`:core:data:connectedDebugAndroidTest`, so an app instrumented test would
-compile in CI and never run until that job learns about it.
+Every screen is built, and everything below them is done and tested: the
+recurrence and occurrence model, catch-up and auto-skip, the Room store,
+reminder scheduling and the digest notification. Nothing is queued under Next;
+what is left is housekeeping.
 
 ## Housekeeping
 
@@ -60,8 +37,9 @@ variant of this cannot crash — it only navigates wrongly.
 _Moves with it_: a test. This one is only reachable through a real transition,
 so unlike the guards in
 [`NavigationTest`](app/src/test/kotlin/at/woergoetter/chorely/NavigationTest.kt)
-it needs a Compose UI test, and therefore the `androidTest` source set and the
-CI job that item 1 above is already waiting on.
+it needs a Compose UI test, in the app's `androidTest` source set, which CI
+already runs on API 26 — where `reminder/Fakes.kt` replaces the data module for
+every test, and its `FakeChores` throws on the reads a UI needs.
 
 **The archive row's buttons crowd the name at large font scales**
 [`ArchiveScreen.kt`](app/src/main/kotlin/at/woergoetter/chorely/ui/archive/ArchiveScreen.kt)
@@ -86,3 +64,25 @@ reaches them for an archived chore, since no screen opens one; a second stacked
 `MainActivity` holding a stale chore screen can.
 _Moves with it_: a `StoredChoresTest` case per write, and one gate in
 `caughtUp` is likely simpler than three.
+
+**Three edges of the digest's retry**
+[`DailyDigestWorker`](app/src/main/kotlin/at/woergoetter/chorely/reminder/DailyDigestWorker.kt)
+retries a failed run as a whole, up to five times, five minutes apart.
+- A `sync()` that throws after a successful post re-posts on the retry, and
+  rings, if the user has dismissed the first one meanwhile. Needs the retry to
+  know the post happened, which nothing persists across attempts today; making
+  every retry silent instead would lose the alert when the *first* attempt
+  failed before posting.
+- A retry for a reminder time after 23:10 can cross midnight, post the new
+  day's list, and then sync to that same day's reminder time: two digests on
+  one day, none the day before. Give up once the local date has moved on.
+- [`WorkManagerReminders.sync()`](app/src/main/kotlin/at/woergoetter/chorely/reminder/WorkManagerReminders.kt)
+  never awaits the `Operation` that `enqueueUniqueWork` returns, so WorkManager's
+  own write failing is never seen, let alone retried. Awaiting it inside the
+  digest worker suspends on the REPLACE that cancels that very worker, so the
+  `DailyDigestWorkerTest` event assertions need rethinking with it.
+- A reboot while a failed digest waits out its backoff loses today's digest:
+  the boot sync REPLACEs the pending retry and aims at tomorrow. The same loss
+  `BootReceiver`'s KDoc already names for a reboot after the reminder time, made
+  likelier by the retry window; keeping a digest already aimed at today would
+  close both.

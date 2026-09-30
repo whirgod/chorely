@@ -53,7 +53,8 @@ android {
         targetSdk = 36
         versionCode = releaseVersionCode
         versionName = releaseVersionName
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Hilt's, so instrumented tests can swap modules; see HiltTestRunner.
+        testInstrumentationRunner = "at.woergoetter.chorely.HiltTestRunner"
     }
 
     signingConfigs {
@@ -131,6 +132,9 @@ dependencies {
   implementation(libs.androidx.hilt.navigation.compose)
   implementation(libs.androidx.hilt.work)
   ksp(libs.hilt.compiler)
+  // @HiltWorker's own processor, on top of Dagger's. Without it nothing binds the workers
+  // into HiltWorkerFactory, which then falls back to reflection and fails on every run.
+  ksp(libs.androidx.hilt.compiler)
 
   // Reminder scheduling
   implementation(libs.androidx.work.runtime.ktx)
@@ -152,4 +156,14 @@ dependencies {
   implementation(libs.androidx.navigation3.ui)
   implementation(libs.androidx.navigation3.runtime)
   implementation(libs.androidx.lifecycle.viewmodel.navigation3)
+}
+
+// Lint reads the sources KSP and Hilt generate — the androidTest ones included — without
+// declaring them as inputs, so nothing stops it analyzing while one of those tasks is still
+// rewriting them, and it then crashes on a file that vanished mid-read ("Unexpected failure
+// during lint analysis ... No such file or directory"). Ordering alone is enough: lint depends
+// on neither, it only must not overlap them.
+// By name only, so no task is configured just to be matched.
+tasks.named { it.startsWith("lintAnalyze") || it.startsWith("lintVitalAnalyze") }.configureEach {
+  mustRunAfter(tasks.named { it.startsWith("ksp") || it.startsWith("hiltJavaCompile") })
 }

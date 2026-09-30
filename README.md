@@ -13,7 +13,7 @@ Early development. Every screen is built; the domain is implemented and tested.
   Room store, reminder scheduling and the daily digest notification; the
   agenda, the chore editor and detail screens, the archive, and settings, where
   the reminder time is set — reminders stay off until it is.
-- **Not done**: tests for the reminder path, and a few navigation edge cases.
+- **Not done**: a few navigation edge cases, listed in TODO.md.
 
 What is left to build, in the order it wants doing, is in [TODO.md](TODO.md).
 The vocabulary is in [CONTEXT.md](CONTEXT.md), the decisions behind the model

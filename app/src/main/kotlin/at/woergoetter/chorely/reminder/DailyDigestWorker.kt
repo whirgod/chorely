@@ -1,12 +1,15 @@
 package at.woergoetter.chorely.reminder
 
 import android.content.Context
+import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import at.woergoetter.chorely.domain.Chores
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.CancellationException
+import java.time.Duration
 
 /**
  * Posts the daily digest and, having posted it, records that the user has been shown what
@@ -20,6 +23,15 @@ import dagger.assisted.AssistedInject
  *   seen would let catch-up log lapses for chores the user was never told about.
  * - The schedule is re-synced at the end, because WorkManager's one-shot work is consumed
  *   by running and the next day's digest does not otherwise exist.
+ * - A failure retries this run rather than failing it: a failed run would end the chain, and
+ *   nothing short of a reboot or the user changing the reminder time rebuilds it. Retrying
+ *   keeps today's digest too, where syncing past the failure would aim straight at tomorrow,
+ *   and it survives a database that is down for `sync()` as well, since the retry is
+ *   WorkManager's own and reads nothing. A retry repeats the whole run, so a `sync()` that
+ *   fails after a successful post posts again; see TODO.md.
+ * - Retries are bounded. On the last attempt a failure gives today up: it tries once more to
+ *   aim the chain at tomorrow and fails the run. That sync replaces the failed request, so
+ *   the logged error, not a FAILED work item, is the trace it leaves.
  */
 @HiltWorker
 class DailyDigestWorker @AssistedInject constructor(
@@ -30,15 +42,42 @@ class DailyDigestWorker @AssistedInject constructor(
     private val reminders: Reminders,
 ) : CoroutineWorker(context, parameters) {
 
-    override suspend fun doWork(): Result {
+    override suspend fun doWork(): Result = try {
         val due = chores.due()
         val posted = due.isNotEmpty() && notifier.post(due)
         if (posted) chores.markSeen()
         reminders.sync()
-        return Result.success()
+        Result.success()
+    } catch (stopped: CancellationException) {
+        // The system stopping the run, not a failure: WorkManager reschedules it itself.
+        throw stopped
+    } catch (failure: Exception) {
+        if (runAttemptCount + 1 < MAX_ATTEMPTS) {
+            Log.w(TAG, "digest run failed, retrying", failure)
+            Result.retry()
+        } else {
+            Log.e(TAG, "digest run failed $MAX_ATTEMPTS times, giving today up", failure)
+            // Best effort: if this throws too, the chain is gone until a reboot or a settings
+            // change, and there is nothing left to try.
+            try {
+                reminders.sync()
+            } catch (stopped: CancellationException) {
+                throw stopped
+            } catch (alsoFailed: Exception) {
+                Log.e(TAG, "and could not schedule tomorrow's either: reminders stop here", alsoFailed)
+            }
+            Result.failure()
+        }
     }
 
     companion object {
         const val NAME = "daily-digest"
+        private const val TAG = "DailyDigestWorker"
+
+        /** With [RETRY_BACKOFF] linear, the last attempt runs 50 minutes after the first. */
+        const val MAX_ATTEMPTS = 5
+
+        /** Linear rather than WorkManager's default doubling, so a retry stays near the chosen time. */
+        val RETRY_BACKOFF: Duration = Duration.ofMinutes(5)
     }
 }

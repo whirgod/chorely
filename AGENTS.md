@@ -34,6 +34,7 @@ Everything runs through the Gradle wrapper from the repo root:
 - Compile instrumented tests without running them: `./gradlew assembleDebugAndroidTest`
 - Lint: `./gradlew lint`
 - Full pre-commit gate: `./gradlew build lint test`
+- An intermittent `Unexpected failure during lint analysis ... (No such file or directory)` is lint overlapping KSP or Hilt code generation; the `mustRunAfter` block at the bottom of [`app/build.gradle.kts`](app/build.gradle.kts) prevents it, so a recurrence means a new generator task that block does not match.
 
 Never invoke `gradle` directly — only `./gradlew`, so the pinned wrapper version is used.
 
@@ -42,7 +43,7 @@ Never invoke `gradle` directly — only `./gradlew`, so the pinned wrapper versi
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every PR to `main` and on pushes to it.
 
 - `build` runs the same gate as the pre-push one, then compiles the instrumented tests.
-- `instrumented-tests` boots an API 26 emulator — the app's `minSdk` — and runs `:core:data:connectedDebugAndroidTest`. **This is the only place instrumented tests run on API 26 or run automatically**; the local emulator is API 36 and started by hand.
+- `instrumented-tests` boots an API 26 emulator — the app's `minSdk` — and runs `:core:data:connectedDebugAndroidTest` and `:app:connectedDebugAndroidTest`; a new module's instrumented tests run nowhere until that script names them. **This is the only place instrumented tests run on API 26 or run automatically**; the local emulator is API 36 and started by hand.
 - A test assertion failing there is real; retrying it is how a Room bug gets shipped. Only two signatures are worth a `gh run rerun --failed`, both runner-level and both seen on the very first run: `Unable to connect to adb daemon`, and Gradle failing to resolve a plugin that demonstrably exists on Maven Central. If a re-run reproduces either, it is no longer the runner.
 - `main` is protected: it takes pull requests only, both checks must pass, and force-pushes and deletions are blocked. Renaming a job in the workflow breaks the required check until the protection rule is renamed to match.
 
@@ -86,8 +87,10 @@ The reminder path is where sessions get lost. Facts that are not visible from an
 - `POST_NOTIFICATIONS` is a runtime permission on API 33+; a silently missing notification usually means it was never granted.
 - Exact alarms require `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM` on API 31+ and are Play-Store-restricted — prefer inexact scheduling unless a chore genuinely needs a precise minute.
 - WorkManager periodic work has a 15-minute minimum interval and is deliberately inexact under Doze; use it for a daily due-sweep, not for firing a reminder at a specific time.
-- The digest is chained one-shot `WorkManager` work, not periodic work, because periodic work cannot be aimed at a time of day; every run schedules the next, so any path that drops a run must call `Reminders.sync()`.
+- The digest is chained one-shot `WorkManager` work, not periodic work, because periodic work cannot be aimed at a time of day; every run schedules the next, so any path that drops a run must call `Reminders.sync()`, and a digest run that fails returns `Result.retry()` — linear, capped at `MAX_ATTEMPTS`, after which it syncs and fails — rather than syncing past the failure, which would skip today's digest.
 - `Reminders.sync()` is idempotent but not free — it re-enqueues with `REPLACE`, discarding a digest that is already due but still pending — so a chore write must not call it (see the KDoc on `ChoreEditorViewModel.onSave`), and `BootReceiver` does call it even though WorkManager, unlike the alarms above, restores its own pending work across a reboot.
+- `@HiltWorker` needs `androidx.hilt:hilt-compiler` under `ksp` on top of Dagger's; without it the build is green and every worker fails at runtime with a `WM-WorkerFactory` `NoSuchMethodException` in logcat, which `BootPathTest` exists to catch.
+- Every app instrumented test runs on `HiltTestRunner` with `DataModule` and `AppModule` replaced by the reminder-only fakes in `reminder/Fakes.kt` — they run inside the installed app's process and would otherwise share its database — so a UI test there must complete those fakes or uninstall them.
 - `nextDigestDelay` is the only part of scheduling that can be silently *wrong* rather than broken; it is pure and unit-tested against DST, and new scheduling arithmetic belongs there too.
 
 ## Code style
