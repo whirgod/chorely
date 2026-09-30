@@ -1,6 +1,8 @@
 package at.woergoetter.chorely.domain
 
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -50,6 +52,25 @@ class StoredChoresTest {
         assertEquals(date("2026-09-26"), detail.outstanding.dueDate)
         assertEquals(listOf(date("2026-09-19")), detail.history.map { it.dueDate })
         assertTrue(detail.history.single() is Resolution.Completion)
+    }
+
+    @Test
+    fun `the detail's outstanding occurrence follows its history even while the book lags`() = runTest {
+        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
+        val beforeCompleting = store.book().first()
+        travelTo("2026-09-19")
+        chores.complete(id)
+
+        // Room re-emits the book and the history separately after a write, so for a moment
+        // the history has the completion and the book does not. The screen unlocks Done on
+        // the history growing, so the date beside it must already be the next one.
+        val lagging = object : ChoreStore by store {
+            override fun book(): Flow<ChoreBook> = flowOf(beforeCompleting)
+        }
+        val detail = StoredChores(lagging) { clock }.detail(id).first()!!
+
+        assertEquals(1, detail.history.size)
+        assertEquals(date("2026-09-26"), detail.outstanding.dueDate)
     }
 
     @Test
