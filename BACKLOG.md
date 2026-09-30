@@ -25,6 +25,19 @@ a local pairing mechanism — so it touches the occurrence model and the offline
 constraint at the same time. Treat it as a new version of the app, not a
 feature on this one.
 
+**First-run onboarding**
+On first launch, ask for the daily reminder time — or let the user decline —
+instead of leaving reminders off until they find settings.
+_Why not now_: the first release ships with reminders opt-in and the time set
+in settings, which is correct if easy to miss; a first-run flow is a screen,
+a conditional start destination and a "has onboarded" flag in Room, and none
+of that is needed to be usable.
+_Revisit when_: the first release is out, or sooner if a new install that
+never finds settings turns out to be the common case rather than the edge.
+_Note_: declining stores no reminder time, just as switching reminders off in
+settings does; only the onboarding flag tells "declined" apart from "never
+asked", so neither case gets an invented time.
+
 **Export and import**
 Write chores and history to a file the user controls, and read it back.
 _Why not now_: Android auto-backup covers the common case of moving to a new

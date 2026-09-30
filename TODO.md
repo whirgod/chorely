@@ -10,22 +10,11 @@ lands, not when it is planned.
 
 Everything below the UI is done: the recurrence and occurrence model, catch-up
 and auto-skip, the Room store, reminder scheduling and the digest notification.
-All four open items are the UI and the tests around the reminder path.
+All three open items are the UI and the tests around the reminder path.
 
 ## Next
 
-**1. The reminder time picker, and the notification permission**
-[`SettingsScreen.kt`](app/src/main/kotlin/at/woergoetter/chorely/ui/settings/SettingsScreen.kt)
-shows the stored time and offers no way to set it; `POST_NOTIFICATIONS` is
-declared in the manifest but never requested.
-_Decide first_: `reminder_minute_of_day` has no default, so on a fresh install
-`reminderTime()` is null, `Reminders.sync()` cancels rather than schedules, and
-**the digest never fires at all** until the user opens this screen. Either seed
-a default time on first run or keep reminders opt-in — a product decision, not
-an implementation detail, and the only thing standing between a new install and
-a silent app.
-
-**2. The chore detail screen**
+**1. The chore detail screen**
 [`ChoreScreen.kt`](app/src/main/kotlin/at/woergoetter/chorely/ui/chore/ChoreScreen.kt)
 lists history rows as `it::class.simpleName` and wires none of its own
 callbacks: `onEdit`, `onComplete`, `onSkip` and `onArchive` are all unused.
@@ -40,14 +29,14 @@ exercised by unit tests alone until this screen calls it.
 _Watch out_: a history is not a score. See the Rejected section of
 [BACKLOG.md](BACKLOG.md) before adding a streak or a completion rate.
 
-**3. The archive list**
+**2. The archive list**
 [`ArchiveScreen.kt`](app/src/main/kotlin/at/woergoetter/chorely/ui/archive/ArchiveScreen.kt)
 prints names with no actions. Restore and delete are one call each on the view
-model, which makes this the smallest of the four.
+model, which makes this the smallest of the three.
 _Watch out_: delete discards the history and is not undoable, so it wants a
 confirmation; archive, which keeps it, must not.
 
-**4. A test for the reminder path**
+**3. A test for the reminder path**
 There is none.
 [`DigestScheduleTest`](app/src/test/kotlin/at/woergoetter/chorely/reminder/DigestScheduleTest.kt)
 covers `nextDigestDelay` and nothing else, and `app` has no `androidTest`
@@ -59,8 +48,8 @@ post-then-`markSeen` ordering, which is the guard that stops an unseen
 occurrence lapsing.
 _Watch out_: `DailyDigestWorker` re-syncs only where `doWork` returns, so a
 throw from `chores.due()` or `notifier.post()` drops the chain for good — a
-reboot is then the only thing that rebuilds it, since the reminder-time change
-that also would needs the picker in item 1. Long-standing rather than new: the
+reboot or the user changing the reminder time in settings is then the only
+thing that rebuilds it. Long-standing rather than new: the
 chore save that once called `Reminders.sync()` was never reachable from a
 placeholder editor. Left unfixed because the fix is precisely what the
 `TestDriver` test above has to assert.
@@ -88,10 +77,9 @@ _Moves with it_: a test. This one is only reachable through a real transition,
 so unlike the guards in
 [`NavigationTest`](app/src/test/kotlin/at/woergoetter/chorely/NavigationTest.kt)
 it needs a Compose UI test, and therefore the `androidTest` source set and the
-CI job that item 4 above is already waiting on.
+CI job that item 3 above is already waiting on.
 
 **User-facing strings are hardcoded in the placeholder screens**
-"Daily reminder at …", "Reminders off" and the detail screen's "Due …" are
-literals in Kotlin; everything the agenda and the editor show is already in
-`strings.xml`. Fold each one in as its screen is built, rather than as a sweep
+The detail screen's "Due …" is a literal in Kotlin; everything the agenda, the
+editor and settings show is already in `strings.xml`. Fold each one in as its screen is built, rather than as a sweep
 afterwards.
