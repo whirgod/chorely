@@ -367,8 +367,8 @@ class StoredChoresTest {
     }
 
     @Test
-    fun `every operation reads the zone once, so a zone change cannot land between two reads`() = runTest {
-        val counting = ZoneCountingClock(clockAt(date("2026-09-16")))
+    fun `every operation reads the clock once, so neither a zone change nor midnight can land between two reads`() = runTest {
+        val counting = CountingClock(clockAt(date("2026-09-16")))
         val chores: Chores = StoredChores(store, counting)
         val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
 
@@ -383,17 +383,20 @@ class StoredChoresTest {
             "restore" to { chores.restore(id) },
         )
         for ((name, operation) in operations) {
-            counting.reads = 0
+            counting.zoneReads = 0
+            counting.instantReads = 0
             operation()
-            assertEquals(name, 1, counting.reads)
+            assertEquals("$name: zone", 1, counting.zoneReads)
+            assertEquals("$name: instant", 1, counting.instantReads)
         }
     }
 
-    /** Counts how often its zone is asked for; the pinned copy it hands out counts nothing. */
-    private class ZoneCountingClock(private val base: Clock) : Clock() {
-        var reads = 0
-        override fun getZone(): java.time.ZoneId = base.zone.also { reads++ }
-        override fun instant() = base.instant()
+    /** Counts how often it is asked the time and the zone; a pinned copy of it counts nothing. */
+    private class CountingClock(private val base: Clock) : Clock() {
+        var zoneReads = 0
+        var instantReads = 0
+        override fun getZone(): java.time.ZoneId = base.zone.also { zoneReads++ }
+        override fun instant(): java.time.Instant = base.instant().also { instantReads++ }
         override fun withZone(zone: java.time.ZoneId): Clock = base.withZone(zone)
     }
 

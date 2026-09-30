@@ -40,3 +40,12 @@ editor restored after process death, which skips the load — saves into
 to say whether it wrote, which `Chores` returns as `Unit` today; `detail()`
 could also emit null for an archived chore, so screens stop filtering it
 themselves, once the chore screen no longer relies on seeing it archive.
+
+**The digest can mark a day seen that it did not show**
+[`DailyDigestWorker`](app/src/main/kotlin/at/woergoetter/chorely/reminder/DailyDigestWorker.kt)
+calls `due()` and then `markSeen()`, two operations that each read the clock,
+so a midnight or an eastward zone change between them records the next day as
+seen while the notification showed only this one — the lapse ADR 0002 exists
+to prevent, though only for a reminder time within milliseconds of midnight.
+_Moves with it_: `markSeen` taking the day that was shown, which `due()` would
+have to return; both are on the `Chores` interface.

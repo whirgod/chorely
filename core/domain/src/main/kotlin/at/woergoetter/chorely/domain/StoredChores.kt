@@ -20,12 +20,11 @@ class StoredChores(
 ) : Chores {
 
     /**
-     * The device's clock with its zone read once: the clock follows a zone change, and one
-     * landing mid-operation would otherwise have, say, the agenda bucket by one day and catch
-     * up by another. Every operation takes one and hands it down, and nothing reads
-     * [deviceClock] directly.
+     * The device's clock, read once: see [Clock.pinned]. Every operation takes one and hands it
+     * down, and nothing reads [deviceClock] directly. The agenda and detail flows take a fresh
+     * one per emission, so they still move on with time.
      */
-    private fun pinned(): Clock = deviceClock.withZone(deviceClock.zone)
+    private fun pinned(): Clock = deviceClock.pinned()
 
     override fun agenda(): Flow<Agenda> = store.book().map { book ->
         val clock = pinned()
