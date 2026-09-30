@@ -34,9 +34,9 @@ import at.woergoetter.chorely.R
 import at.woergoetter.chorely.domain.ChoreDetail
 import at.woergoetter.chorely.domain.Recurrence
 import at.woergoetter.chorely.domain.Resolution
-import java.time.ZoneId
+import at.woergoetter.chorely.ui.rememberDateFormatter
+import at.woergoetter.chorely.ui.toLocalDateHere
 import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import java.time.format.TextStyle
 import java.time.temporal.WeekFields
 import java.util.Locale
@@ -131,7 +131,7 @@ private fun ChoreDetailList(
     modifier: Modifier = Modifier,
 ) {
     val locale = Locale.getDefault()
-    val dates = remember(locale) { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale) }
+    val dates = rememberDateFormatter(locale)
 
     // Done and Skip each resolve whichever occurrence is outstanding when the write lands, so
     // a double tap resolves this one and then its successor, which the user has never seen.
@@ -219,11 +219,9 @@ private fun ResolutionRow(resolution: Resolution, dates: DateTimeFormatter) {
             // Only a completion says when it happened, and only when that was not the due
             // date: early and late are both worth seeing, on-the-day is the due date again.
             // A skip's moment is when it was recorded, which for a displaced one is merely
-            // when the app next looked, and means nothing to the user. The instant is read
-            // in the zone the device is in now, like every other date in the app. Not
-            // `LocalDate.ofInstant`, which Android has only from API 34.
+            // when the app next looked, and means nothing to the user.
             val doneOn = (resolution as? Resolution.Completion)
-                ?.let { it.at.atZone(ZoneId.systemDefault()).toLocalDate() }
+                ?.let { it.at.toLocalDateHere() }
                 ?.takeIf { it != resolution.dueDate }
             Text(
                 if (doneOn == null) {

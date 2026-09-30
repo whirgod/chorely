@@ -48,12 +48,6 @@ constrained, so on a narrow phone with a large font the name — the only thing
 saying which chore a Delete applies to — is squeezed to a sliver. Moving the
 actions under the headline, or into an overflow menu, fixes it.
 
-**Date formatting is copied between screens**
-`ChoreScreen` and `ArchiveScreen` each build the locale-keyed MEDIUM formatter
-and each convert an `Instant` to a local date with
-`atZone(ZoneId.systemDefault())` (not `LocalDate.ofInstant`, which is API 34+).
-A third copy is the moment to lift both into a shared helper in `ui`.
-
 **Writes to an archived chore still catch it up**
 `complete`, `skip` and `edit` in
 [`StoredChores.kt`](core/domain/src/main/kotlin/at/woergoetter/chorely/domain/StoredChores.kt)
