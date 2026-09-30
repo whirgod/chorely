@@ -315,7 +315,9 @@ class StoredChoresTest {
 
         write(id)
 
-        assertTrue(chores.detail(id).first()!!.history.isEmpty())
+        // The store's own history, not detail(): whether detail() shows an archived chore at
+        // all is a separate question (see TODO.md), and this one is only about writes.
+        assertTrue(store.history(id).first().isEmpty())
         assertEquals(before, chores.archived().first().single())
     }
 
