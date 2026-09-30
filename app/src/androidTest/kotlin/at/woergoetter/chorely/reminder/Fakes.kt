@@ -101,8 +101,11 @@ class FakeChores @Inject constructor(private val events: Events) : Chores {
     @Volatile
     var dueResult: () -> List<DueChore> = { emptyList() }
 
-    /** The day `due()` reports; `markSeen` is asserted to be told this one. */
-    val today: LocalDate = LocalDate.of(2026, 9, 16)
+    /**
+     * The day `due()` reports; `markSeen` is asserted to be told this one. Decades from any
+     * clock, so a worker that worked the day out for itself could not pass by coincidence.
+     */
+    val today: LocalDate = LocalDate.of(2001, 1, 1)
 
     var seenThrough: LocalDate? = null
 

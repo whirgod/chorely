@@ -79,10 +79,13 @@ class StoredChores(
         }
         // Never backwards — a move west makes "today" earlier, and a digest's day can be older
         // than one the overview has already marked — since the record of what the user has
-        // been shown must not un-show anything. Never past tomorrow either: nothing on screen
-        // can be further ahead, and a date beyond that would lapse occurrences no one saw.
-        val shown = minOf(through, LocalDate.now(clock).plusDays(1))
-        edit.markSeen(book.seenThrough?.let { maxOf(it, shown) } ?: shown)
+        // been shown must not un-show anything. Never past tomorrow either, the stored value
+        // included: nothing on screen can be further ahead, and a date beyond that, left by a
+        // clock once set wrongly forward, would go on lapsing occurrences no one saw.
+        val cap = LocalDate.now(clock).plusDays(1)
+        val shown = minOf(through, cap)
+        val stored = book.seenThrough?.let { minOf(it, cap) }
+        edit.markSeen(stored?.let { maxOf(it, shown) } ?: shown)
     }
 
     override suspend fun add(draft: ChoreDraft): ChoreId = store.transact { edit ->

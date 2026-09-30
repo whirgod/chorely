@@ -348,6 +348,19 @@ class StoredChoresTest {
     }
 
     @Test
+    fun `a seenThrough left in the future by a clock set wrongly forward is brought back`() = runTest {
+        travelTo("2027-01-01")
+        chores.markSeenToday()
+        travelTo("2026-09-16")
+        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
+        chores.markSeenToday()
+
+        // Seen through 09-17 now, not 2027: the 09-19 occurrence was never shown, and waits.
+        travelTo("2026-09-26")
+        assertEquals(date("2026-09-19"), chores.detail(id).first()!!.outstanding.dueDate)
+    }
+
+    @Test
     fun `markSeen never moves seenThrough backwards, as a move west would`() = runTest {
         val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
         // The 09-19 occurrence is shown on 09-20; then "today" steps back to before it was due.

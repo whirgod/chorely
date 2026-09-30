@@ -49,21 +49,14 @@ fun AgendaScreen(
 ) {
     val agenda by viewModel.agenda.collectAsStateWithLifecycle()
 
-    // Being shown what is due is what makes an occurrence "seen", so this waits for the
-    // agenda to arrive rather than for the screen to open: until the first emission there is
-    // nothing on screen to have seen. An agenda that arrives empty still counts — every
-    // active chore is on it, so an empty one is the whole truth. See AgendaViewModel.onShown.
-    //
-    // Once per resume rather than once per composition: the composition survives being
-    // backgrounded, so a screen first shown yesterday is shown again today without ever being
-    // recomposed, and keying this on Unit would leave seenThrough stuck on the day the
-    // composition began. markSeen() is idempotent within a day, so a spare resume costs
-    // nothing.
-    if (agenda != null) {
-        val lifecycle = LocalLifecycleOwner.current.lifecycle
-        LaunchedEffect(lifecycle, viewModel) {
-            lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { viewModel.onShown() }
-        }
+    // Being shown what is due is what makes an occurrence "seen", so this marks each agenda as
+    // it reaches the screen, and only while the screen is resumed — see
+    // AgendaViewModel.markShownWhileResumed. Per resume rather than per composition: the
+    // composition survives being backgrounded, so a screen first shown yesterday is shown
+    // again today without ever being recomposed.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(lifecycle, viewModel) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { viewModel.markShownWhileResumed() }
     }
 
     Scaffold(
