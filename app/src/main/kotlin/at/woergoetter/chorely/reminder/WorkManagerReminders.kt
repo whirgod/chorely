@@ -1,5 +1,6 @@
 package at.woergoetter.chorely.reminder
 
+import androidx.work.BackoffPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
@@ -38,6 +39,7 @@ class WorkManagerReminders @Inject constructor(
             ExistingWorkPolicy.REPLACE,
             OneTimeWorkRequestBuilder<DailyDigestWorker>()
                 .setInitialDelay(nextDigestDelay(time, clock))
+                .setBackoffCriteria(BackoffPolicy.LINEAR, DailyDigestWorker.RETRY_BACKOFF)
                 .addTag(DailyDigestWorker.NAME)
                 .build(),
         )

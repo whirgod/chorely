@@ -3,6 +3,8 @@ package at.woergoetter.chorely.reminder
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import androidx.work.BackoffPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 
@@ -26,7 +28,13 @@ class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
-        WorkManager.getInstance(context)
-            .enqueue(OneTimeWorkRequestBuilder<ReminderSyncWorker>().build())
+        // Unique with KEEP, so a second boot while one sync is still retrying adds nothing.
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            ReminderSyncWorker.NAME,
+            ExistingWorkPolicy.KEEP,
+            OneTimeWorkRequestBuilder<ReminderSyncWorker>()
+                .setBackoffCriteria(BackoffPolicy.LINEAR, DailyDigestWorker.RETRY_BACKOFF)
+                .build(),
+        )
     }
 }
