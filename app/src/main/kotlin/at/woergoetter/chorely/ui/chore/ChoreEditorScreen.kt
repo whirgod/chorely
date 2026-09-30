@@ -58,6 +58,7 @@ import java.util.Locale
 fun ChoreEditorScreen(
     choreId: ChoreId?,
     viewModel: ChoreEditorViewModel,
+    isActive: () -> Boolean,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -80,9 +81,11 @@ fun ChoreEditorScreen(
     // process death has neither saved nor left, and should offer both again.
     var leaving by remember { mutableStateOf(false) }
     // Every way out goes through here, so there is one place the latch can close: the first
-    // caller runs [onWayOut] and leaves, and nothing after it gets this far.
+    // caller runs [onWayOut] and leaves, and nothing after it gets this far. The latch sees
+    // only the exits this screen takes; [isActive] covers the one it does not, a system back
+    // gesture, after which a Save landing on the departing form must not save it.
     fun leave(onWayOut: () -> Unit = {}) {
-        if (leaving) return
+        if (leaving || !isActive()) return
         leaving = true
         onWayOut()
         onDone()
@@ -108,7 +111,7 @@ fun ChoreEditorScreen(
                     Text(stringResource(if (choreId == null) R.string.new_chore else R.string.edit_chore))
                 },
                 navigationIcon = {
-                    TextButton(onClick = { leave() }, enabled = !leaving) {
+                    TextButton(onClick = { leave() }, enabled = !leaving && isActive()) {
                         Text(stringResource(R.string.cancel))
                     }
                 },
@@ -121,7 +124,7 @@ fun ChoreEditorScreen(
                             val ready = draft ?: return@TextButton
                             leave { viewModel.onSave(choreId, ready) }
                         },
-                        enabled = draft != null && !leaving,
+                        enabled = draft != null && !leaving && isActive(),
                     ) { Text(stringResource(R.string.save)) }
                 },
             )

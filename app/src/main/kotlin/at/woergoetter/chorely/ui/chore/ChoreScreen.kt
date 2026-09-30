@@ -51,6 +51,7 @@ import java.util.Locale
 @Composable
 fun ChoreScreen(
     viewModel: ChoreViewModel,
+    isActive: () -> Boolean,
     onEdit: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -64,10 +65,16 @@ fun ChoreScreen(
     // second write. Edit pushes, and a Back or Archive landing while the editor slides in
     // would pop the editor instead of this screen, so all three share the one way out.
     var leaving by remember { mutableStateOf(false) }
+    // [isActive] closes the gap the latch cannot see: a system back that took this screen off
+    // the top without passing through here.
+    // And a way out the navigator refused — an Edit while the editor is still sliding off from
+    // last time — leaves this screen on top, so the latch opens again rather than holding every
+    // button off with nowhere gone.
     fun leave(onWayOut: () -> Unit) {
-        if (leaving) return
+        if (leaving || !isActive()) return
         leaving = true
         onWayOut()
+        if (isActive()) leaving = false
     }
 
     // Edit is a way out that comes back. Usually this entry leaves composition behind the
@@ -92,7 +99,7 @@ fun ChoreScreen(
     var lastShown by remember { mutableStateOf<ChoreDetail?>(null) }
     (state as? ChoreState.Shown)?.detail?.let { lastShown = it }
     val detail = lastShown
-    val canAct = state is ChoreState.Shown && !leaving
+    val canAct = state is ChoreState.Shown && !leaving && isActive()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -102,7 +109,7 @@ fun ChoreScreen(
                     Text(detail?.chore?.name.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 },
                 navigationIcon = {
-                    TextButton(onClick = { leave(onBack) }, enabled = !leaving) {
+                    TextButton(onClick = { leave(onBack) }, enabled = !leaving && isActive()) {
                         Text(stringResource(R.string.back))
                     }
                 },

@@ -9,9 +9,8 @@ import org.junit.Test
  * tappable for the length of a transition, so every navigation callback can fire twice: the
  * guards are what keeps the second firing from doing damage.
  *
- * These are plain list operations on purpose. Reaching the same conclusions through
- * `NavDisplay` would take a Compose UI test, and the app module's instrumented tests are never
- * run anywhere — CI's emulator job runs `:core:data` only.
+ * These are plain list operations on purpose, as are [Navigator]'s rules below; what only a
+ * real transition shows is in the instrumented `GuardedNavDisplayTest`.
  */
 class NavigationTest {
 
@@ -97,5 +96,100 @@ class NavigationTest {
             listOf(AgendaRoute, ChoreRoute(7), ChoreEditorRoute(7), ChoreRoute(7)),
             stack,
         )
+    }
+
+    @Test
+    fun `a screen off the top can neither pop nor push`() {
+        val stack = stackOf(AgendaRoute, ChoreRoute(1))
+        val navigator = Navigator(stack)
+
+        navigator.back(from = AgendaRoute)
+        navigator.go(from = AgendaRoute, to = SettingsRoute)
+
+        assertEquals(listOf(AgendaRoute, ChoreRoute(1)), stack)
+    }
+
+    @Test
+    fun `the screen on top may leave before it has settled`() {
+        val stack = stackOf(AgendaRoute)
+        val navigator = Navigator(stack)
+        navigator.onResumed(AgendaRoute)
+        navigator.go(from = AgendaRoute, to = ChoreEditorRoute(1))
+        // The transition holds everything at STARTED, the agenda included.
+        navigator.onPaused(AgendaRoute)
+
+        // The editor finding its chore gone while it is still sliding in.
+        navigator.back(from = ChoreEditorRoute(1))
+
+        assertEquals(listOf(AgendaRoute), stack)
+        // Back on the agenda, but not settled on it: it is still sliding back in.
+        assertEquals(false, navigator.isSettled)
+    }
+
+    @Test
+    fun `system back waits until the new top has resumed`() {
+        val stack = stackOf(AgendaRoute, ChoreRoute(1), ChoreEditorRoute(1))
+        val navigator = Navigator(stack)
+        navigator.onResumed(ChoreEditorRoute(1))
+        navigator.back(from = ChoreEditorRoute(1))
+        navigator.onPaused(ChoreEditorRoute(1))
+
+        navigator.systemBack()
+        assertEquals(listOf(AgendaRoute, ChoreRoute(1)), stack)
+
+        navigator.onResumed(ChoreRoute(1))
+        navigator.systemBack()
+        assertEquals(listOf(AgendaRoute), stack)
+    }
+
+    @Test
+    fun `a late resume of the entry that left does not settle the new top`() {
+        val stack = stackOf(AgendaRoute, ChoreRoute(1))
+        val navigator = Navigator(stack)
+        navigator.back(from = ChoreRoute(1))
+
+        navigator.onResumed(ChoreRoute(1))
+
+        assertEquals(false, navigator.isSettled)
+    }
+
+    @Test
+    fun `an entry that never stopped being resumed is settled`() {
+        // Popped and pushed back before NavDisplay recomposed: its lifecycle never left
+        // RESUMED, so no new resume will arrive, and back must not wait for one.
+        val stack = stackOf(AgendaRoute, ChoreRoute(1))
+        val navigator = Navigator(stack)
+        navigator.onResumed(ChoreRoute(1))
+        navigator.back(from = ChoreRoute(1))
+        navigator.go(from = AgendaRoute, to = ChoreRoute(1))
+
+        assertEquals(true, navigator.isSettled)
+    }
+
+    @Test
+    fun `a pause does not unsettle the top, as a predictive back gesture pauses it`() {
+        val stack = stackOf(AgendaRoute, ChoreRoute(1))
+        val navigator = Navigator(stack)
+        navigator.onResumed(ChoreRoute(1))
+
+        navigator.onPaused(ChoreRoute(1))
+        navigator.systemBack()
+
+        assertEquals(listOf(AgendaRoute), stack)
+    }
+
+    @Test
+    fun `a key still composed on its way out cannot be pushed again`() {
+        val stack = stackOf(AgendaRoute, ChoreEditorRoute())
+        val navigator = Navigator(stack)
+        navigator.onComposed(ChoreEditorRoute())
+        navigator.back(from = ChoreEditorRoute())
+
+        navigator.go(from = AgendaRoute, to = ChoreEditorRoute())
+        assertEquals(listOf(AgendaRoute), stack)
+
+        navigator.onDisposed(ChoreEditorRoute())
+        navigator.go(from = AgendaRoute, to = ChoreEditorRoute())
+        assertEquals(listOf(AgendaRoute, ChoreEditorRoute()), stack)
     }
 }
