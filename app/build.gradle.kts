@@ -131,6 +131,9 @@ dependencies {
   implementation(libs.androidx.hilt.navigation.compose)
   implementation(libs.androidx.hilt.work)
   ksp(libs.hilt.compiler)
+  // @HiltWorker's own processor, on top of Dagger's. Without it nothing binds the workers
+  // into HiltWorkerFactory, which then falls back to reflection and fails on every run.
+  ksp(libs.androidx.hilt.compiler)
 
   // Reminder scheduling
   implementation(libs.androidx.work.runtime.ktx)
@@ -153,3 +156,4 @@ dependencies {
   implementation(libs.androidx.navigation3.runtime)
   implementation(libs.androidx.lifecycle.viewmodel.navigation3)
 }
+
