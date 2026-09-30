@@ -56,7 +56,7 @@ interface Chores {
     /** Stops the chore falling due, keeping its history. */
     suspend fun archive(id: ChoreId)
 
-    /** Un-archives, with the outstanding occurrence recomputed from today. */
+    /** Un-archives, with the outstanding occurrence recomputed from today. A chore that is not archived is left as it is. */
     suspend fun restore(id: ChoreId)
 
     /** Discards the chore and its history. Not undoable. */

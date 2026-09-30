@@ -50,6 +50,13 @@
     <string name="resolution_displaced">Skipped automatically</string>
     <string name="resolution_done_on">Due %1$s, done %2$s</string>
 
+    <string name="archive_empty">Nothing archived. An archived chore stops falling due and keeps its history until you restore or delete it.</string>
+    <string name="archived_on">Archived %1$s</string>
+    <string name="restore">Restore</string>
+    <string name="delete">Delete</string>
+    <string name="delete_chore_title">Delete \u201C%1$s\u201D?</string>
+    <string name="delete_chore_body">Its history goes with it. This cannot be undone.</string>
+
     <string name="daily_reminder">Daily reminder</string>
     <string name="reminder_off">Off</string>
     <string name="reminder_at">Every day at %1$s</string>

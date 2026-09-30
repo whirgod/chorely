@@ -265,6 +265,16 @@ class StoredChoresTest {
     }
 
     @Test
+    fun `restoring a chore that is not archived leaves it as overdue as it was`() = runTest {
+        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
+        travelTo("2026-09-22")
+
+        chores.restore(id)
+
+        assertEquals(date("2026-09-19"), chores.detail(id).first()!!.outstanding.dueDate)
+    }
+
+    @Test
     fun `deleting discards the chore and its history`() = runTest {
         val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
         travelTo("2026-09-19")

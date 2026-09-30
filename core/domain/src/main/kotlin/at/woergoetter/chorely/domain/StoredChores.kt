@@ -113,6 +113,9 @@ class StoredChores(
 
     override suspend fun restore(id: ChoreId): Unit = store.transact { edit ->
         val record = edit.book().record(id) ?: return@transact
+        // Only an archived chore: re-anchoring an active one would forgive whatever it has
+        // outstanding, and a second tap on Restore lands on a chore the first one revived.
+        if (!record.chore.isArchived) return@transact
         // Re-anchored to today: a chore archived for a year should not come back a year
         // overdue, and its history stays intact behind the new anchor.
         val anchoredOn = anchorFor(record.chore.recurrence, LocalDate.now(clock))
