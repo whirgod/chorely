@@ -23,8 +23,8 @@ class ChoreEditorViewModel @Inject constructor(
      *
      * A one-shot read and not a Flow: the form is the user's copy of the chore from the
      * moment it opens, and a later emission from Room arriving underneath their typing
-     * would overwrite it. The screen holds the result — the chore id cannot reach this
-     * constructor, for the reason written out on `ChoreViewModel.detail`.
+     * would overwrite it. The screen holds the result, as saveable state that outlives
+     * process death; this ViewModel would not.
      */
     suspend fun load(id: ChoreId): Chore? = chores.detail(id).first()?.chore
 
