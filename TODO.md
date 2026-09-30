@@ -40,16 +40,3 @@ editor restored after process death, which skips the load — saves into
 to say whether it wrote, which `Chores` returns as `Unit` today; `detail()`
 could also emit null for an archived chore, so screens stop filtering it
 themselves, once the chore screen no longer relies on seeing it archive.
-
-**"Seen through a day" counts occurrences that were never on screen**
-[ADR 0002](docs/adr/0002-the-user-must-have-seen-an-occurrence-before-it-can-lapse.md)
-keeps one global `seenThrough` date and rejects per-chore ones because the
-overview and the digest "show every due chore at once". They show every
-*chore*, but each by its outstanding occurrence only: a weekly Sat+Sun chore
-whose Saturday is still outstanding on Sunday shows Saturday, `markSeen`
-records Sunday, and Sunday's occurrence — displaced into the outstanding slot
-once Saturday lapses — is then counted as seen without having been shown. The
-next displacement can lapse it. A design decision, not a bug fix: per-chore
-seen dates (the ADR's rejected option, whose reason for rejection does not
-hold), or `through` limited to the earliest outstanding calendar-anchored
-occurrence shown.
