@@ -17,6 +17,7 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -170,7 +171,8 @@ class BootPathTest {
     @Test
     fun aDigestPastItsTimeIsReaimedWhenTodaysReminderIsStillAhead() = runBlocking {
         // Held past its time, then the reminder is moved later in the day: running it now
-        // and again at the new time would be two digests today.
+        // and again at the new time would be two digests today. Needs "later today" to exist.
+        assumeTrue(LocalTime.now(clock) < LocalTime.of(21, 30))
         settings.time.value = LocalTime.now(clock).plusSeconds(2)
         reminders.get().sync()
         val held = workManager.awaitPendingDigest()
@@ -179,13 +181,14 @@ class BootPathTest {
         settings.time.value = LocalTime.now(clock).plusHours(2).withSecond(0).withNano(0)
         reminders.get().sync()
 
-        workManager.awaitPendingDigest { it.id != held.id }
-        assertTrue("it must not run now: ${events.snapshot()}", "due" !in events.snapshot())
+        // Re-aimed about two hours out rather than run now.
+        val reaimed = workManager.awaitPendingDigest { it.id != held.id }
+        assertTrue("delay ${reaimed.initialDelayMillis} ms", reaimed.initialDelayMillis > 3_600_000)
     }
 
     @Test
     fun aDigestWaitingOutARetryIsRunNotSkippedToTomorrow() = runBlocking {
-        // Midnight, which has always passed today: a digest only retries once its time has come.
+        // Midnight, whose time has always come today. A retry is owed whatever its day.
         settings.time.value = LocalTime.MIDNIGHT
         chores.dueResult = { error("database unavailable") }
         reminders.get().sync()

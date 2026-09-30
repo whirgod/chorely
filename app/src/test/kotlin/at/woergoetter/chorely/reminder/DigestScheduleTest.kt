@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -65,19 +66,35 @@ class DigestScheduleTest {
         assertEquals(LocalTime.of(3, 30), firesAt.toLocalTime())
     }
 
+    private fun at(dateTime: String, zone: ZoneId = vienna): Instant =
+        LocalDateTime.parse(dateTime).atZone(zone).toInstant()
+
     @Test
-    fun `today's digest time has passed once it is reached`() {
-        assertEquals(false, isPastTodaysDigest(LocalTime.of(19, 0), clockAt("2026-09-16T18:59")))
-        assertEquals(true, isPastTodaysDigest(LocalTime.of(19, 0), clockAt("2026-09-16T19:00")))
-        assertEquals(true, isPastTodaysDigest(LocalTime.of(19, 0), clockAt("2026-09-16T23:59")))
+    fun `a digest not yet due is not owed`() {
+        assertEquals(false, isOwedDigest(at("2026-09-16T19:00"), LocalTime.of(19, 0), clockAt("2026-09-16T18:00")))
     }
 
     @Test
-    fun `today's digest time is read in the zone the clock is in`() {
-        // 16:00 in Vienna is 10:00 in New York: an 08:00 reminder has passed there, 18:00 not.
-        val newYork = clockAt("2026-09-16T10:00", ZoneId.of("America/New_York"))
+    fun `a digest held past its time on its own day is owed`() {
+        assertEquals(true, isOwedDigest(at("2026-09-16T08:00"), LocalTime.of(8, 0), clockAt("2026-09-16T08:40")))
+    }
 
-        assertEquals(true, isPastTodaysDigest(LocalTime.of(8, 0), newYork))
-        assertEquals(false, isPastTodaysDigest(LocalTime.of(18, 0), newYork))
+    @Test
+    fun `a held digest is re-aimed when the reminder has moved later today`() {
+        assertEquals(false, isOwedDigest(at("2026-09-16T08:00"), LocalTime.of(20, 0), clockAt("2026-09-16T08:30")))
+    }
+
+    @Test
+    fun `a held digest is re-aimed where today's reminder is still ahead after travel`() {
+        // An 08:00 Vienna digest is 02:00 in New York; at 03:00 there, 08:00 is still to come.
+        val newYork = ZoneId.of("America/New_York")
+        val clock = clockAt("2026-09-16T03:00", newYork)
+
+        assertEquals(false, isOwedDigest(at("2026-09-16T08:00"), LocalTime.of(8, 0), clock))
+    }
+
+    @Test
+    fun `a digest held past midnight is owed, so its day still gets it`() {
+        assertEquals(true, isOwedDigest(at("2026-09-16T23:30"), LocalTime.of(23, 30), clockAt("2026-09-17T00:20")))
     }
 }
