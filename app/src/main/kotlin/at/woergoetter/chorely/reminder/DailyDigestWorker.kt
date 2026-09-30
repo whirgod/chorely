@@ -64,7 +64,7 @@ class DailyDigestWorker @AssistedInject constructor(
             } catch (stopped: CancellationException) {
                 throw stopped
             } catch (alsoFailed: Exception) {
-                failure.addSuppressed(alsoFailed)
+                Log.e(TAG, "and could not schedule tomorrow's either: reminders stop here", alsoFailed)
             }
             Result.failure()
         }

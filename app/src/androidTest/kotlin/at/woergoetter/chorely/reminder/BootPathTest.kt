@@ -5,9 +5,11 @@ import android.content.Intent
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.work.ListenableWorker
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkQuery
+import androidx.work.testing.TestListenableWorkerBuilder
 import dagger.Lazy
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -91,6 +93,37 @@ class BootPathTest {
         eventually { events.snapshot().count { it == "sync" } == 2 }
         val digests = workManager.getWorkInfosForUniqueWork(DailyDigestWorker.NAME).get()
         assertTrue("no digest may be pending: $digests", digests.none { it.state == WorkInfo.State.ENQUEUED })
+    }
+
+    @Test
+    fun aSecondBootWhileASyncIsPendingAddsNoSecondSync() {
+        // Held by its backoff: the first attempt fails, so the request stays pending.
+        settings.readResult = { error("database unavailable") }
+
+        BootReceiver().onReceive(context, Intent(Intent.ACTION_BOOT_COMPLETED))
+        runBlocking {
+            eventually {
+                workManager.getWorkInfosForUniqueWork(ReminderSyncWorker.NAME).get()
+                    .any { it.state == WorkInfo.State.ENQUEUED && it.runAttemptCount == 1 }
+            }
+        }
+        val retrying = workManager.getWorkInfosForUniqueWork(ReminderSyncWorker.NAME).get().single().id
+        BootReceiver().onReceive(context, Intent(Intent.ACTION_BOOT_COMPLETED))
+
+        // The one already retrying, not a fresh request in its place, which REPLACE would leave.
+        val syncs = workManager.getWorkInfosForUniqueWork(ReminderSyncWorker.NAME).get()
+        assertEquals("one sync, retrying: $syncs", listOf(retrying), syncs.map { it.id })
+    }
+
+    @Test
+    fun theBootSyncGivesUpAfterItsLastAttempt() = runBlocking {
+        settings.readResult = { error("database unavailable") }
+        val worker = TestListenableWorkerBuilder<ReminderSyncWorker>(context)
+            .setWorkerFactory(workerFactory)
+            .setRunAttemptCount(DailyDigestWorker.MAX_ATTEMPTS - 1)
+            .build()
+
+        assertEquals(ListenableWorker.Result.failure(), worker.doWork())
     }
 
     @Test

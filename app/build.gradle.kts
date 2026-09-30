@@ -163,6 +163,7 @@ dependencies {
 // rewriting them, and it then crashes on a file that vanished mid-read ("Unexpected failure
 // during lint analysis ... No such file or directory"). Ordering alone is enough: lint depends
 // on neither, it only must not overlap them.
-tasks.matching { it.name.startsWith("lintAnalyze") || it.name.startsWith("lintVitalAnalyze") }.configureEach {
-  mustRunAfter(tasks.matching { it.name.startsWith("ksp") || it.name.startsWith("hiltJavaCompile") })
+// By name only, so no task is configured just to be matched.
+tasks.named { it.startsWith("lintAnalyze") || it.startsWith("lintVitalAnalyze") }.configureEach {
+  mustRunAfter(tasks.named { it.startsWith("ksp") || it.startsWith("hiltJavaCompile") })
 }
