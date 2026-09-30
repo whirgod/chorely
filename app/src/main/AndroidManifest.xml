@@ -3,8 +3,8 @@
 
     <!-- Runtime permission on API 33+. A silently missing digest is almost always this. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- BootReceiver re-derives the schedule from Room; see its KDoc for why that is
-         belt-and-braces rather than necessary. -->
+    <!-- BootReceiver re-derives the schedule from Room after a reboot (belt-and-braces) and
+         after a timezone or clock change (necessary); see its KDoc. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!--
@@ -47,6 +47,8 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
             </intent-filter>
         </receiver>
 

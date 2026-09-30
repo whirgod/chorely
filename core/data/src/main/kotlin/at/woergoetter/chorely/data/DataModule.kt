@@ -38,11 +38,12 @@ object DataModule {
     /**
      * The device's own clock and zone. Injected rather than reached for, so tests can
      * advance time and travel; due dates are whole local days in the *current* timezone,
-     * with no correction for travel.
+     * with no correction for travel — see [DeviceClock] for why that is not
+     * `Clock.systemDefaultZone()`.
      */
     @Provides
     @Singleton
-    fun clock(): Clock = Clock.systemDefaultZone()
+    fun clock(): Clock = DeviceClock
 
     @Provides
     @Singleton

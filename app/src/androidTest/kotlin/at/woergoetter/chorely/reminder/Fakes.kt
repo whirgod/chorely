@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.WorkManager
 import at.woergoetter.chorely.AppModule
 import at.woergoetter.chorely.data.DataModule
+import at.woergoetter.chorely.data.DeviceClock
 import at.woergoetter.chorely.domain.Agenda
 import at.woergoetter.chorely.domain.Chore
 import at.woergoetter.chorely.domain.ChoreDetail
@@ -62,7 +63,7 @@ abstract class FakeDataModule {
     companion object {
         @Provides
         @Singleton
-        fun clock(): Clock = Clock.systemDefaultZone()
+        fun clock(): Clock = DeviceClock
     }
 }
 

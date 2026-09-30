@@ -10,12 +10,14 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkQuery
 import androidx.work.testing.TestListenableWorkerBuilder
+import androidx.work.testing.WorkManagerTestInitHelper
 import dagger.Lazy
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -42,6 +44,8 @@ class BootPathTest {
     @Inject lateinit var settings: FakeReminderSettings
 
     @Inject lateinit var events: Events
+
+    @Inject lateinit var chores: FakeChores
 
     @Inject lateinit var clock: Clock
 
@@ -124,6 +128,79 @@ class BootPathTest {
             .build()
 
         assertEquals(ListenableWorker.Result.failure(), worker.doWork())
+    }
+
+    // One test per action rather than a loop: the sync is unique work with KEEP, and a second
+    // broadcast landing before the first sync has been marked finished would be dropped.
+    // Only that the sync happens, too: a test cannot move the device's zone to watch the
+    // digest re-aim, and the arithmetic is unit-tested in DigestScheduleTest.
+
+    @Test
+    fun aTimezoneChangeResyncs() = resyncsOn(Intent.ACTION_TIMEZONE_CHANGED)
+
+    @Test
+    fun aClockChangeResyncs() = resyncsOn(Intent.ACTION_TIME_CHANGED)
+
+    private fun resyncsOn(action: String) = runBlocking {
+        settings.time.value = LocalTime.now(clock).plusHours(2).withSecond(0).withNano(0)
+
+        BootReceiver().onReceive(context, Intent(action))
+
+        eventually { events.snapshot().isNotEmpty() }
+        assertEquals(listOf("sync"), events.snapshot())
+        workManager.awaitPendingDigest()
+        Unit
+    }
+
+    @Test
+    fun aDigestPastItsTimeButNotYetRunIsRunNotSkippedToTomorrow() = runBlocking {
+        // Aimed two seconds out, and never released by the test driver: past its time and
+        // still pending, as a digest Doze has held back is.
+        settings.time.value = LocalTime.now(clock).plusSeconds(2)
+        reminders.get().sync()
+        val dueAt = workManager.awaitPendingDigest().nextScheduleTimeMillis
+        eventually { System.currentTimeMillis() > dueAt }
+
+        // A network time correction, say.
+        BootReceiver().onReceive(context, Intent(Intent.ACTION_TIME_CHANGED))
+
+        // It runs now rather than being re-aimed at tomorrow: due() is its first call.
+        eventually { "due" in events.snapshot() }
+    }
+
+    @Test
+    fun aDigestPastItsTimeIsReaimedWhenTodaysReminderIsStillAhead() = runBlocking {
+        // Held past its time, then the reminder is moved later in the day: running it now
+        // and again at the new time would be two digests today. Needs "later today" to exist.
+        assumeTrue(LocalTime.now(clock) < LocalTime.of(21, 30))
+        settings.time.value = LocalTime.now(clock).plusSeconds(2)
+        reminders.get().sync()
+        val held = workManager.awaitPendingDigest()
+        eventually { System.currentTimeMillis() > held.nextScheduleTimeMillis }
+
+        settings.time.value = LocalTime.now(clock).plusHours(2).withSecond(0).withNano(0)
+        reminders.get().sync()
+
+        // Re-aimed about two hours out rather than run now.
+        val reaimed = workManager.awaitPendingDigest { it.id != held.id }
+        assertTrue("delay ${reaimed.initialDelayMillis} ms", reaimed.initialDelayMillis > 3_600_000)
+    }
+
+    @Test
+    fun aDigestWaitingOutARetryIsRunNotSkippedToTomorrow() = runBlocking {
+        // Midnight, whose time has always come today. A retry is owed whatever its day.
+        settings.time.value = LocalTime.MIDNIGHT
+        chores.dueResult = { error("database unavailable") }
+        reminders.get().sync()
+        val scheduled = workManager.awaitPendingDigest()
+        WorkManagerTestInitHelper.getTestDriver(context)!!.setInitialDelayMet(scheduled.id)
+        workManager.awaitPendingDigest { it.id == scheduled.id && it.runAttemptCount == 1 }
+        chores.dueResult = { emptyList() }
+        val attempts = events.snapshot().count { it == "due" }
+
+        BootReceiver().onReceive(context, Intent(Intent.ACTION_BOOT_COMPLETED))
+
+        eventually { events.snapshot().count { it == "due" } > attempts }
     }
 
     @Test

@@ -15,11 +15,12 @@ interface Reminders {
      * Brings the scheduled digest in line with the stored reminder time: schedules it,
      * moves it, or cancels it if reminders are switched off.
      *
-     * Idempotent — two calls at one instant leave the same schedule — but not harmless:
-     * it replaces whatever is pending, so a digest that fell due this morning and has not
-     * run yet is thrown away and the next one aimed at tomorrow. Call it where the
-     * reminder time or the chain itself changed, which is where losing that run is either
-     * correct or already lost; a write elsewhere in the app changes nothing this reads.
+     * Idempotent — two calls at one instant leave the same schedule — but not free: it
+     * replaces whatever is pending. A digest already owed — past its time but not yet run, or
+     * retrying — is replaced by one that runs at once, so a clock correction or a reboot
+     * cannot throw today's away; one not yet due is re-aimed. Call it where the reminder time,
+     * the device's time or zone, or the chain itself changed; a write elsewhere in the app
+     * changes nothing this reads.
      */
     suspend fun sync()
 }

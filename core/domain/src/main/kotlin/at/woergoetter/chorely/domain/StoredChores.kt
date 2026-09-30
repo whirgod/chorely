@@ -64,7 +64,10 @@ class StoredChores(
             val displaced = record.catchUp(book.seenThrough).displaced
             if (displaced.isNotEmpty()) edit.append(record.chore.id, displaced)
         }
-        edit.markSeen(LocalDate.now(clock))
+        // Never backwards: a move to a zone further west makes "today" earlier, and the
+        // record of what the user has been shown must not un-show anything.
+        val today = LocalDate.now(clock)
+        edit.markSeen(book.seenThrough?.let { maxOf(it, today) } ?: today)
     }
 
     override suspend fun add(draft: ChoreDraft): ChoreId = store.transact { edit ->
