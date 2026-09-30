@@ -38,7 +38,8 @@ _Moves with it_: a test. This one is only reachable through a real transition,
 so unlike the guards in
 [`NavigationTest`](app/src/test/kotlin/at/woergoetter/chorely/NavigationTest.kt)
 it needs a Compose UI test, in the app's `androidTest` source set, which CI
-already runs on API 26.
+already runs on API 26 — where `reminder/Fakes.kt` replaces the data module for
+every test, and its `FakeChores` throws on the reads a UI needs.
 
 **The archive row's buttons crowd the name at large font scales**
 [`ArchiveScreen.kt`](app/src/main/kotlin/at/woergoetter/chorely/ui/archive/ArchiveScreen.kt)

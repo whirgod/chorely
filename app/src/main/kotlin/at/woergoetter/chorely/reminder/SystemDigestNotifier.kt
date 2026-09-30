@@ -60,6 +60,8 @@ class SystemDigestNotifier @Inject constructor(
             .setStyle(inboxStyle(due, overdue))
             .setContentIntent(openApp())
             .setAutoCancel(true)
+            // A retried digest run re-posts the same notification; it must not ring again.
+            .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .build()
 

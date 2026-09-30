@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.work.ListenableWorker
 import androidx.work.WorkManager
+import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.WorkManagerTestInitHelper
 import at.woergoetter.chorely.domain.Chore
 import at.woergoetter.chorely.domain.ChoreId
@@ -113,6 +115,22 @@ class DailyDigestWorkerTest {
         assertEquals(listOf("due", "post", "markSeen"), events)
     }
 
+    @Test
+    fun theLastAttemptGivesTodayUpButStillSchedulesTomorrow() = runBlocking {
+        chores.dueResult = { error("database unavailable") }
+        val worker = TestListenableWorkerBuilder<DailyDigestWorker>(context)
+            .setWorkerFactory(workerFactory)
+            .setRunAttemptCount(DailyDigestWorker.MAX_ATTEMPTS - 1)
+            .build()
+
+        val result = worker.doWork()
+
+        assertEquals(ListenableWorker.Result.failure(), result)
+        assertEquals(listOf("due", "sync"), events.snapshot())
+        workManager.awaitPendingDigest()
+        Unit
+    }
+
     /**
      * Schedules a digest as the app does, lets its delay pass, and waits for the request that
      * run must leave behind. Returns what the run did, in order. Times out — failing the test —
@@ -125,6 +143,8 @@ class DailyDigestWorkerTest {
         WorkManagerTestInitHelper.getTestDriver(context)!!.setInitialDelayMet(scheduled.id)
 
         workManager.awaitPendingDigest { it.id != scheduled.id }
+        // The successor can be visible before the worker's thread has recorded the sync.
+        eventually { "sync" in events.snapshot().drop(before) }
         events.snapshot().drop(before)
     }
 

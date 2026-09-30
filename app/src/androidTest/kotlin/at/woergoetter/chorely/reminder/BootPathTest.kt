@@ -66,6 +66,8 @@ class BootPathTest {
         BootReceiver().onReceive(context, Intent(Intent.ACTION_BOOT_COMPLETED))
 
         val digest = workManager.awaitPendingDigest()
+        // The request can be visible before the worker's thread has recorded the sync.
+        eventually { events.snapshot().isNotEmpty() }
         assertEquals(listOf("sync"), events.snapshot())
         // Against the pure function the schedule is unit-tested through, with a minute's slack
         // for the time that passes between the worker reading the clock and this line.
