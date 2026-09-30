@@ -75,3 +75,14 @@ actions under the headline, or into an overflow menu, fixes it.
 and each convert an `Instant` to a local date with
 `atZone(ZoneId.systemDefault())` (not `LocalDate.ofInstant`, which is API 34+).
 A third copy is the moment to lift both into a shared helper in `ui`.
+
+**Writes to an archived chore still catch it up**
+`complete`, `skip` and `edit` in
+[`StoredChores.kt`](core/domain/src/main/kotlin/at/woergoetter/chorely/domain/StoredChores.kt)
+run `caughtUp` without asking whether the chore is archived, so they write the
+lapses of months it spent in the archive into a history that cannot lose them —
+the thing `archive`, `restore` and `delete` now refuse. Nothing in the app
+reaches them for an archived chore, since no screen opens one; a second stacked
+`MainActivity` holding a stale chore screen can.
+_Moves with it_: a `StoredChoresTest` case per write, and one gate in
+`caughtUp` is likely simpler than three.
