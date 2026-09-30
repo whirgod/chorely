@@ -9,9 +9,8 @@ import org.junit.Test
  * tappable for the length of a transition, so every navigation callback can fire twice: the
  * guards are what keeps the second firing from doing damage.
  *
- * These are plain list operations on purpose. Reaching the same conclusions through
- * `NavDisplay` would take a Compose UI test, and the app module's instrumented tests are never
- * run anywhere — CI's emulator job runs `:core:data` only.
+ * These are plain list operations on purpose, as are [Navigator]'s rules below; what only a
+ * real transition shows is in the instrumented `GuardedNavDisplayTest`.
  */
 class NavigationTest {
 
@@ -97,5 +96,54 @@ class NavigationTest {
             listOf(AgendaRoute, ChoreRoute(7), ChoreEditorRoute(7), ChoreRoute(7)),
             stack,
         )
+    }
+
+    @Test
+    fun `a screen off the top can neither pop nor push`() {
+        val stack = stackOf(AgendaRoute, ChoreRoute(1))
+        val navigator = Navigator(stack)
+
+        navigator.back(from = AgendaRoute)
+        navigator.go(from = AgendaRoute, to = SettingsRoute)
+
+        assertEquals(listOf(AgendaRoute, ChoreRoute(1)), stack)
+    }
+
+    @Test
+    fun `the screen on top may leave before it has settled`() {
+        val stack = stackOf(AgendaRoute)
+        val navigator = Navigator(stack)
+        navigator.go(from = AgendaRoute, to = ChoreEditorRoute(1))
+
+        // The editor finding its chore gone while it is still sliding in.
+        navigator.back(from = ChoreEditorRoute(1))
+
+        assertEquals(listOf(AgendaRoute), stack)
+    }
+
+    @Test
+    fun `system back waits until the new top has settled`() {
+        val stack = stackOf(AgendaRoute, ChoreRoute(1), ChoreEditorRoute(1))
+        val navigator = Navigator(stack)
+        navigator.back(from = ChoreEditorRoute(1))
+
+        navigator.systemBack()
+        assertEquals(listOf(AgendaRoute, ChoreRoute(1)), stack)
+
+        navigator.settle(ChoreRoute(1))
+        navigator.systemBack()
+        assertEquals(listOf(AgendaRoute), stack)
+    }
+
+    @Test
+    fun `only the top can settle`() {
+        val stack = stackOf(AgendaRoute, ChoreRoute(1))
+        val navigator = Navigator(stack)
+        navigator.back(from = ChoreRoute(1))
+
+        // A resume from the entry that just left, arriving late, must not unlock system back.
+        navigator.settle(ChoreRoute(1))
+
+        assertEquals(false, navigator.isSettled)
     }
 }

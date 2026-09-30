@@ -15,32 +15,6 @@ what is left is housekeeping.
 
 ## Housekeeping
 
-**The editor's leave latch does not cover the system back gesture**
-`leave()` in
-[`ChoreEditorScreen.kt`](app/src/main/kotlin/at/woergoetter/chorely/ui/chore/ChoreEditorScreen.kt)
-closes the latch for Cancel and Save, but `NavDisplay`'s `onBack` calls the back
-stack's `back()` directly, so a gesture never goes through it. On
-`[Agenda, Chore, Editor]`: tap Cancel, then swipe back while the editor is still
-animating out, and the chore detail screen is popped as well — one tap plus one
-gesture costs two screens. The rarer order is worse in kind: swipe back to
-abandon a half-filled form, let a finger land on the still-visible Save, and the
-chore is created after the user abandoned it.
-`ChoreScreen` has a latch of the same shape with the same gap: Back or Archive
-then a swipe, on `[Agenda, Chore]`, lands the swipe on the agenda and leaves
-the app.
-`ArchiveScreen` has no latch at all: a Restore tapped while it slides out
-still lands, and a Delete opens a dialog that vanishes with the entry.
-_Why it is still here_: the latch would have to notice a pop it did not
-originate, which is a change to the navigation layer rather than a correction
-inside this screen. `back()` already refuses to empty the stack, so the cheapest
-variant of this cannot crash — it only navigates wrongly.
-_Moves with it_: a test. This one is only reachable through a real transition,
-so unlike the guards in
-[`NavigationTest`](app/src/test/kotlin/at/woergoetter/chorely/NavigationTest.kt)
-it needs a Compose UI test, in the app's `androidTest` source set, which CI
-already runs on API 26 — where `reminder/Fakes.kt` replaces the data module for
-every test, and its `FakeChores` throws on the reads a UI needs.
-
 **Three edges of the digest's retry**
 [`DailyDigestWorker`](app/src/main/kotlin/at/woergoetter/chorely/reminder/DailyDigestWorker.kt)
 retries a failed run as a whole, up to five times, five minutes apart.

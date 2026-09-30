@@ -51,6 +51,7 @@ import java.util.Locale
 @Composable
 fun ChoreScreen(
     viewModel: ChoreViewModel,
+    isActive: () -> Boolean,
     onEdit: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -64,8 +65,10 @@ fun ChoreScreen(
     // second write. Edit pushes, and a Back or Archive landing while the editor slides in
     // would pop the editor instead of this screen, so all three share the one way out.
     var leaving by remember { mutableStateOf(false) }
+    // [isActive] closes the gap the latch cannot see: a system back that took this screen off
+    // the top without passing through here.
     fun leave(onWayOut: () -> Unit) {
-        if (leaving) return
+        if (leaving || !isActive()) return
         leaving = true
         onWayOut()
     }
