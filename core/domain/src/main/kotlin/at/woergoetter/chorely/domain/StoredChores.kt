@@ -73,18 +73,19 @@ class StoredChores(
     override suspend fun markSeen(through: LocalDate): Unit = store.transact { edit ->
         val clock = pinned()
         val book = edit.book()
-        book.active().forEach { record ->
-            val displaced = record.catchUp(book.seenThrough, clock).displaced
-            if (displaced.isNotEmpty()) edit.append(record.chore.id, displaced)
-        }
         // Never backwards — a move west makes "today" earlier, and a digest's day can be older
         // than one the overview has already marked — since the record of what the user has
-        // been shown must not un-show anything. Never past tomorrow either, the stored value
-        // included: nothing on screen can be further ahead, and a date beyond that, left by a
-        // clock once set wrongly forward, would go on lapsing occurrences no one saw.
+        // been shown must not un-show anything. Except past tomorrow, which wins: nothing on
+        // screen can be further ahead, and a date beyond that, left by a clock once set wrongly
+        // forward, would go on lapsing occurrences no one saw. It is brought back here, at the
+        // next markSeen, and the catch-up below already uses the corrected value.
         val cap = LocalDate.now(clock).plusDays(1)
-        val shown = minOf(through, cap)
         val stored = book.seenThrough?.let { minOf(it, cap) }
+        book.active().forEach { record ->
+            val displaced = record.catchUp(stored, clock).displaced
+            if (displaced.isNotEmpty()) edit.append(record.chore.id, displaced)
+        }
+        val shown = minOf(through, cap)
         edit.markSeen(stored?.let { maxOf(it, shown) } ?: shown)
     }
 

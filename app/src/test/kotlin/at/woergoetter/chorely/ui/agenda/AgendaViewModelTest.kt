@@ -6,7 +6,10 @@ import at.woergoetter.chorely.domain.ChoreDetail
 import at.woergoetter.chorely.domain.ChoreDraft
 import at.woergoetter.chorely.domain.ChoreId
 import at.woergoetter.chorely.domain.Chores
+import at.woergoetter.chorely.domain.DueChore
 import at.woergoetter.chorely.domain.DueToday
+import at.woergoetter.chorely.domain.Occurrence
+import at.woergoetter.chorely.domain.Recurrence
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -22,6 +25,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
+import java.time.Period
 
 /**
  * The overview's half of the auto-skip guard: it marks seen only what reached the screen,
@@ -60,11 +64,17 @@ class AgendaViewModelTest {
         advanceUntilIdle()
         chores.agendas.emit(Agenda(day = SUNDAY))
         advanceUntilIdle()
-        // A re-emission for the same day, after a write, marks nothing new.
-        chores.agendas.emit(Agenda(day = SUNDAY))
+        // A re-emission for the same day with other contents, as after a write, marks nothing new.
+        chores.agendas.emit(Agenda(day = SUNDAY, today = listOf(dueChore())))
         advanceUntilIdle()
 
         assertEquals(listOf(SATURDAY, SUNDAY), chores.seen)
+    }
+
+    private fun dueChore(): DueChore {
+        val id = ChoreId(1)
+        val chore = Chore(id = id, name = "Vacuum", recurrence = Recurrence.Every(Period.ofDays(7)), anchoredOn = SUNDAY)
+        return DueChore(chore, Occurrence(id, SUNDAY))
     }
 
     private companion object {

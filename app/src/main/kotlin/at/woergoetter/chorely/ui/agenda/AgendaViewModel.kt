@@ -35,14 +35,19 @@ class AgendaViewModel @Inject constructor(
      * auto-skip guard: an occurrence counts as seen if the user was shown it here or by the
      * daily digest, and only a seen occurrence may be recorded as a lapse.
      *
-     * Every emission and not just the first: resumed on a new day, the screen first shows the
-     * agenda it was left with — yesterday's, still held in [agenda] — and today's arrives a
-     * moment later. Marking only the first would record yesterday for a screen showing today.
-     * Nothing before the first emission: a seed value is not something the user was shown.
+     * Every emission and not just the first: resumed on a new day after the store has been let
+     * go, the screen first shows the agenda it was left with — yesterday's, still held in
+     * [agenda] — and today's once the store answers. Marking only the first would record
+     * yesterday for a screen showing today. (Resumed sooner, the store is never asked again, and
+     * yesterday's stays on screen and is all that is marked: late, never early.) Nothing before
+     * the first emission: a seed value is not something the user was shown.
+     *
+     * The write itself goes on [viewModelScope], so leaving the screen a moment after an agenda
+     * arrived does not roll back the record that it was shown.
      */
     suspend fun markShownWhileResumed() {
         agenda.filterNotNull().map { it.day }.distinctUntilChanged().collect { day ->
-            chores.markSeen(through = day)
+            viewModelScope.launch { chores.markSeen(through = day) }
         }
     }
 

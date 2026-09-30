@@ -362,15 +362,16 @@ class StoredChoresTest {
 
     @Test
     fun `markSeen never moves seenThrough backwards, as a move west would`() = runTest {
-        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
-        // The 09-19 occurrence is shown on 09-20; then "today" steps back to before it was due.
+        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY, SUNDAY)))
+        // Seen through Sunday 09-20, which is then outstanding; "today" steps back a day, which
+        // is within the one-day cap, so nothing may be un-shown.
         travelTo("2026-09-20")
         chores.markSeenToday()
-        travelTo("2026-09-18")
+        travelTo("2026-09-19")
         chores.markSeenToday()
 
-        // Once 09-26 is due the 09-19 occurrence lapses, as it may only if it was seen.
-        travelTo("2026-09-27")
+        // Sunday was seen, so it lapses once the next Saturday is due.
+        travelTo("2026-09-26")
         assertEquals(date("2026-09-26"), chores.detail(id).first()!!.outstanding.dueDate)
     }
 

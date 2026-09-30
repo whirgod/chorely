@@ -45,9 +45,10 @@ interface Chores {
      *
      * [through] is the [Agenda.day] or [DueToday.day] of what was shown, not whatever day it
      * is by the time this runs: a midnight or a zone change between the read and this call
-     * must not record the next day as seen. Never moves backwards, and never records more than a
-     * day past today, which covers any ordinary move west between the two calls; a date
-     * already stored beyond that is brought back to it.
+     * must not record the next day as seen. Never moves backwards, except that it never records
+     * more than a day past today — which covers any ordinary move west between the two calls —
+     * and brings a date already stored beyond that back to it. That repair happens here, so it
+     * protects only from the next call onward.
      *
      * What this cannot express: each chore shows only its outstanding occurrence, so one
      * whose outstanding occurrence is older than [through] has a later one counted as seen
