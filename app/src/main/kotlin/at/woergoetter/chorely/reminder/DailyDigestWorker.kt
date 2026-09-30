@@ -44,8 +44,9 @@ class DailyDigestWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result = try {
         val due = chores.due()
-        val posted = due.isNotEmpty() && notifier.post(due)
-        if (posted) chores.markSeen()
+        val posted = due.chores.isNotEmpty() && notifier.post(due.chores)
+        // Through the day the list was worked out for, not whatever day it is by now.
+        if (posted) chores.markSeen(through = due.day)
         reminders.sync()
         Result.success()
     } catch (stopped: CancellationException) {

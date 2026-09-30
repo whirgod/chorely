@@ -135,8 +135,8 @@ class RoomChoreStoreTest {
 
     @Test
     fun seenThroughSurvivesBeingSetTwice() = runTest {
-        chores("2026-09-16").markSeen()
-        chores("2026-09-19").markSeen()
+        chores("2026-09-16").markSeen(LocalDate.parse("2026-09-16"))
+        chores("2026-09-19").markSeen(LocalDate.parse("2026-09-19"))
 
         assertEquals(LocalDate.parse("2026-09-19"), store.book().first().seenThrough)
     }

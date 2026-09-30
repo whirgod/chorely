@@ -89,10 +89,10 @@ class StoredChoresTest {
         val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
 
         travelTo("2026-09-19")
-        chores.markSeen() // the digest goes out on the day it is due
+        chores.markSeenToday() // the digest goes out on the day it is due
 
         travelTo("2026-09-26")
-        chores.markSeen()
+        chores.markSeenToday()
 
         val detail = chores.detail(id).first()!!
         assertEquals(listOf(date("2026-09-19")), detail.history.map { it.dueDate })
@@ -116,12 +116,12 @@ class StoredChoresTest {
     fun `marking seen twice on the same day writes nothing the second time`() = runTest {
         val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
         travelTo("2026-09-19")
-        chores.markSeen()
+        chores.markSeenToday()
         travelTo("2026-09-26")
 
-        chores.markSeen()
+        chores.markSeenToday()
         val once = chores.detail(id).first()!!.history
-        chores.markSeen()
+        chores.markSeenToday()
         val twice = chores.detail(id).first()!!.history
 
         assertEquals(once, twice)
@@ -131,7 +131,7 @@ class StoredChoresTest {
     fun `reading the agenda never writes`() = runTest {
         val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
         travelTo("2026-09-19")
-        chores.markSeen()
+        chores.markSeenToday()
         travelTo("2026-09-26")
 
         repeat(3) { chores.agenda().first() }
@@ -145,7 +145,7 @@ class StoredChoresTest {
         chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
         travelTo("2026-09-19")
 
-        val due = chores.due()
+        val due = chores.due().chores
 
         assertEquals(listOf("Kettle", "Vacuum"), due.map { it.chore.name })
     }
@@ -154,7 +154,7 @@ class StoredChoresTest {
     fun `the digest is empty when nothing is due, so the reminder stays silent`() = runTest {
         chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
 
-        assertTrue(chores.due().isEmpty())
+        assertTrue(chores.due().chores.isEmpty())
     }
 
     @Test
@@ -228,10 +228,10 @@ class StoredChoresTest {
     fun `lapses written in one catch-up still come back newest first`() = runTest {
         val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
         travelTo("2026-10-03")
-        chores.markSeen() // nothing has lapsed yet: none of it had been shown
+        chores.markSeenToday() // nothing has lapsed yet: none of it had been shown
         travelTo("2026-10-10")
 
-        chores.markSeen()
+        chores.markSeenToday()
 
         val history = chores.detail(id).first()!!.history
         assertEquals(
@@ -310,7 +310,7 @@ class StoredChoresTest {
         val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
         chores.archive(id)
         travelTo("2026-10-08")
-        chores.markSeen()
+        chores.markSeenToday()
         val before = chores.archived().first().single()
 
         write(id)
@@ -322,16 +322,56 @@ class StoredChoresTest {
     }
 
     @Test
-    fun `markSeen never moves seenThrough backwards, as a move west would`() = runTest {
-        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
-        // The 09-19 occurrence is shown on 09-20; then "today" steps back to before it was due.
+    fun `a digest's markSeen is through the day it listed, not a midnight later`() = runTest {
+        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY, SUNDAY)))
+        // The Saturday digest is worked out; midnight passes before it is marked seen.
+        travelTo("2026-09-19")
+        val due = chores.due()
         travelTo("2026-09-20")
-        chores.markSeen()
-        travelTo("2026-09-18")
-        chores.markSeen()
+        chores.markSeen(through = due.day)
 
-        // Once 09-26 is due the 09-19 occurrence lapses, as it may only if it was seen.
-        travelTo("2026-09-27")
+        // Saturday was shown, so it lapses once Sunday is due; Sunday was not, so it waits
+        // rather than lapsing when the next Saturday comes.
+        travelTo("2026-09-26")
+        assertEquals(date("2026-09-20"), chores.detail(id).first()!!.outstanding.dueDate)
+    }
+
+    @Test
+    fun `markSeen records no further than tomorrow, whatever it is told`() = runTest {
+        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
+        chores.markSeen(through = date("2027-01-01"))
+
+        // Seen through 09-17 at most, so the 09-19 occurrence was never seen and does not
+        // lapse when the next one falls due.
+        travelTo("2026-09-26")
+        assertEquals(date("2026-09-19"), chores.detail(id).first()!!.outstanding.dueDate)
+    }
+
+    @Test
+    fun `a seenThrough left in the future by a clock set wrongly forward is brought back`() = runTest {
+        travelTo("2027-01-01")
+        chores.markSeenToday()
+        travelTo("2026-09-16")
+        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
+        chores.markSeenToday()
+
+        // Seen through 09-17 now, not 2027: the 09-19 occurrence was never shown, and waits.
+        travelTo("2026-09-26")
+        assertEquals(date("2026-09-19"), chores.detail(id).first()!!.outstanding.dueDate)
+    }
+
+    @Test
+    fun `markSeen never moves seenThrough backwards, as a move west would`() = runTest {
+        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY, SUNDAY)))
+        // Seen through Sunday 09-20, which is then outstanding; "today" steps back a day, which
+        // is within the one-day cap, so nothing may be un-shown.
+        travelTo("2026-09-20")
+        chores.markSeenToday()
+        travelTo("2026-09-19")
+        chores.markSeenToday()
+
+        // Sunday was seen, so it lapses once the next Saturday is due.
+        travelTo("2026-09-26")
         assertEquals(date("2026-09-26"), chores.detail(id).first()!!.outstanding.dueDate)
     }
 
@@ -357,7 +397,7 @@ class StoredChoresTest {
         // The 09-19 occurrence is shown to the user on 09-20, and lapses once 09-26 falls due —
         // after the last markSeen, so nothing but the archive's own catch-up can write it.
         travelTo("2026-09-20")
-        chores.markSeen()
+        chores.markSeenToday()
         travelTo("2026-09-27")
         assertTrue(chores.detail(id).first()!!.history.isEmpty())
 
@@ -376,7 +416,7 @@ class StoredChoresTest {
             "agenda" to { chores.agenda().first() },
             "detail" to { chores.detail(id).first() },
             "due" to { chores.due() },
-            "markSeen" to { chores.markSeen() },
+            "markSeen" to { chores.markSeen(date("2026-09-16")) },
             "complete" to { chores.complete(id) },
             "edit" to { chores.edit(id, ChoreDraft("Vacuum", weekly(SUNDAY))) },
             "archive" to { chores.archive(id) },
@@ -399,6 +439,8 @@ class StoredChoresTest {
         override fun instant(): java.time.Instant = base.instant().also { instantReads++ }
         override fun withZone(zone: java.time.ZoneId): Clock = base.withZone(zone)
     }
+
+    private suspend fun Chores.markSeenToday() = markSeen(LocalDate.now(clock))
 
     private fun StoredChores(store: ChoreStore, clock: () -> Clock): Chores =
         StoredChores(store, MutableClock(clock))

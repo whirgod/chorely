@@ -1,6 +1,7 @@
 package at.woergoetter.chorely.domain
 
 import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
 
 /**
  * The whole of Chorely's behaviour, as the app sees it.
@@ -32,17 +33,28 @@ interface Chores {
     fun archived(): Flow<List<Chore>>
 
     /**
-     * What the daily digest should list: overdue and due today, soonest first.
-     * Empty means the digest stays silent.
+     * What the daily digest should list: overdue and due today, soonest first, with the day
+     * that "today" was. No chores means the digest stays silent.
      */
-    suspend fun due(): List<DueChore>
+    suspend fun due(): DueToday
 
     /**
-     * Records that the user has now been shown what is due, and writes the auto-skips
-     * that fact makes real. Called when the overview is displayed and after the daily
-     * digest has actually been posted — never merely because a background job ran.
+     * Records that the user has now been shown what is due through [through], and writes the
+     * auto-skips that fact makes real. Called when the overview is displayed and after the
+     * daily digest has actually been posted — never merely because a background job ran.
+     *
+     * [through] is the [Agenda.day] or [DueToday.day] of what was shown, not whatever day it
+     * is by the time this runs: a midnight or a zone change between the read and this call
+     * must not record the next day as seen. Never moves backwards, except that it never records
+     * more than a day past today — which covers any ordinary move west between the two calls —
+     * and brings a date already stored beyond that back to it. That repair happens here, so it
+     * protects only from the next call onward.
+     *
+     * What this cannot express: each chore shows only its outstanding occurrence, so one
+     * whose outstanding occurrence is older than [through] has a later one counted as seen
+     * that was never on screen. See TODO.md.
      */
-    suspend fun markSeen()
+    suspend fun markSeen(through: LocalDate)
 
     suspend fun add(draft: ChoreDraft): ChoreId
 
