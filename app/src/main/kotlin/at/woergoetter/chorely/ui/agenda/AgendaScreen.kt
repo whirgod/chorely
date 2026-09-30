@@ -129,9 +129,19 @@ private fun LazyListScope.dueSection(
                 // name that says which chore a Done is for.
                 Column {
                     Text(stringResource(R.string.due_on, dates.format(entry.dueDate)))
+                    // Named per row, as on the archive, so a screen reader says which chore a Done
+                    // is for rather than reading "Skip, Done" down the list.
+                    val skipLabel = stringResource(R.string.skip_named, entry.chore.name)
+                    val doneLabel = stringResource(R.string.done_named, entry.chore.name)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        TextButton(onClick = { onSkip(entry.chore.id) }) { Text(stringResource(R.string.skip)) }
-                        TextButton(onClick = { onComplete(entry.chore.id) }) { Text(stringResource(R.string.done)) }
+                        TextButton(
+                            onClick = { onSkip(entry.chore.id) },
+                            modifier = Modifier.semantics { contentDescription = skipLabel },
+                        ) { Text(stringResource(R.string.skip), modifier = Modifier.clearAndSetSemantics {}) }
+                        TextButton(
+                            onClick = { onComplete(entry.chore.id) },
+                            modifier = Modifier.semantics { contentDescription = doneLabel },
+                        ) { Text(stringResource(R.string.done), modifier = Modifier.clearAndSetSemantics {}) }
                     }
                 }
             },
