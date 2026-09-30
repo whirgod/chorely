@@ -11,13 +11,26 @@ second condition: an occurrence is displaced only if the user has already been s
 `Chores.markSeen()`. Two things advance it, and both are places the user genuinely saw what
 was due: the overview screen appearing, and the daily digest **actually being posted** —
 not merely the worker having run, since a digest the system refused for want of
-`POST_NOTIFICATIONS` reached nobody.
+`POST_NOTIFICATIONS` reached nobody. Each passes the day it worked its list out for, not
+the day it happens to be when the write lands.
+
+The guarantee is therefore per *day*, not per occurrence: the user has been shown the app's
+state as of that day. That is deliberately weaker than "this exact occurrence was on
+screen" — see the per-chore option below — and strong enough for what the rule exists to
+prevent, a month of lapses written for a phone that was off.
 
 ## Considered options
 
-- **Per-chore rather than global.** Rejected as machinery without a difference: the screen
-  and the digest both show every due chore at once, so the per-chore dates would only ever
-  move together.
+- **Per-chore, or per-occurrence, rather than global.** Rejected, though not because it
+  would make no difference. The screen and the digest show every chore at once, but each
+  only by its *outstanding* occurrence, so a later occurrence of the same chore can be
+  counted as seen without having been on screen: a weekly Saturday-and-Sunday chore whose
+  Saturday is still outstanding on Sunday shows Saturday, the day is marked seen, and
+  Sunday's occurrence — outstanding once Saturday lapses — can lapse in turn at the next
+  Saturday. Exactness would need a seen date per chore, or a record of which occurrences
+  each view displayed, and the storage and migrations that come with it. The divergence is
+  one occurrence at a time, on a chore the user was already being shown as overdue, so the
+  global date was kept and the rule relaxed to match it.
 - **Counting any app launch as seen.** Rejected: opening the editor to add a chore is not
   being shown what is due, and it would make lapses depend on which screen the user happened
   to open.

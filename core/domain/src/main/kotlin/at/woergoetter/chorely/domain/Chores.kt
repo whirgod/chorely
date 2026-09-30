@@ -50,9 +50,9 @@ interface Chores {
      * and brings a date already stored beyond that back to it. That repair happens here, so it
      * protects only from the next call onward.
      *
-     * What this cannot express: each chore shows only its outstanding occurrence, so one
-     * whose outstanding occurrence is older than [through] has a later one counted as seen
-     * that was never on screen. See TODO.md.
+     * Seen through a day, not occurrence by occurrence: each chore is shown only by its
+     * outstanding occurrence, so a later one of the same chore can count as seen without
+     * having been on screen. Accepted — see ADR 0002.
      */
     suspend fun markSeen(through: LocalDate)
 
