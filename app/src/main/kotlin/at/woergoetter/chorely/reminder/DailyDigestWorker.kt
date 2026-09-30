@@ -27,11 +27,11 @@ import java.time.Duration
  *   nothing short of a reboot or the user changing the reminder time rebuilds it. Retrying
  *   keeps today's digest too, where syncing past the failure would aim straight at tomorrow,
  *   and it survives a database that is down for `sync()` as well, since the retry is
- *   WorkManager's own and reads nothing. A retry after a post re-posts under the same
- *   notification id, silently: the notifier alerts only once.
+ *   WorkManager's own and reads nothing. A retry repeats the whole run, so a `sync()` that
+ *   fails after a successful post posts again; see TODO.md.
  * - Retries are bounded. On the last attempt a failure gives today up: it tries once more to
- *   aim the chain at tomorrow and fails the run, so something that throws every time shows
- *   up as failed work instead of re-posting all night.
+ *   aim the chain at tomorrow and fails the run. That sync replaces the failed request, so
+ *   the logged error, not a FAILED work item, is the trace it leaves.
  */
 @HiltWorker
 class DailyDigestWorker @AssistedInject constructor(
@@ -59,7 +59,13 @@ class DailyDigestWorker @AssistedInject constructor(
             Log.e(TAG, "digest run failed $MAX_ATTEMPTS times, giving today up", failure)
             // Best effort: if this throws too, the chain is gone until a reboot or a settings
             // change, and there is nothing left to try.
-            runCatching { reminders.sync() }.onFailure { failure.addSuppressed(it) }
+            try {
+                reminders.sync()
+            } catch (stopped: CancellationException) {
+                throw stopped
+            } catch (alsoFailed: Exception) {
+                failure.addSuppressed(alsoFailed)
+            }
             Result.failure()
         }
     }

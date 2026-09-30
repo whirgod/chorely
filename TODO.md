@@ -64,3 +64,20 @@ reaches them for an archived chore, since no screen opens one; a second stacked
 `MainActivity` holding a stale chore screen can.
 _Moves with it_: a `StoredChoresTest` case per write, and one gate in
 `caughtUp` is likely simpler than three.
+
+**Three edges of the digest's retry**
+[`DailyDigestWorker`](app/src/main/kotlin/at/woergoetter/chorely/reminder/DailyDigestWorker.kt)
+retries a failed run as a whole, up to five times, five minutes apart.
+- A `sync()` that throws after a successful post re-posts on the retry, and
+  rings, if the user has dismissed the first one meanwhile. Needs the retry to
+  know the post happened, which nothing persists across attempts today; making
+  every retry silent instead would lose the alert when the *first* attempt
+  failed before posting.
+- A retry for a reminder time after 23:10 can cross midnight, post the new
+  day's list, and then sync to that same day's reminder time: two digests on
+  one day, none the day before. Give up once the local date has moved on.
+- [`WorkManagerReminders.sync()`](app/src/main/kotlin/at/woergoetter/chorely/reminder/WorkManagerReminders.kt)
+  never awaits the `Operation` that `enqueueUniqueWork` returns, so WorkManager's
+  own write failing is never seen, let alone retried. Awaiting it inside the
+  digest worker suspends on the REPLACE that cancels that very worker, so the
+  `DailyDigestWorkerTest` event assertions need rethinking with it.
