@@ -19,14 +19,15 @@ class ChoreEditorViewModel @Inject constructor(
 ) : ViewModel() {
 
     /**
-     * The chore to prefill the form from, or null if it is gone.
+     * The chore to prefill the form from, or null if it is gone — or archived, which the store
+     * would not let Save edit, so the form would lose whatever the user typed.
      *
      * A one-shot read and not a Flow: the form is the user's copy of the chore from the
      * moment it opens, and a later emission from Room arriving underneath their typing
      * would overwrite it. The screen holds the result, as saveable state that outlives
      * process death; this ViewModel would not.
      */
-    suspend fun load(id: ChoreId): Chore? = chores.detail(id).first()?.chore
+    suspend fun load(id: ChoreId): Chore? = chores.detail(id).first()?.chore?.takeUnless { it.isArchived }
 
     /**
      * Saves, on a scope that outlives the screen.

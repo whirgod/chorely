@@ -288,6 +288,40 @@ class StoredChoresTest {
     }
 
     @Test
+    fun `completing an archived chore writes nothing`() = runTest {
+        assertAnArchivedChoreIgnores { chores.complete(it) }
+    }
+
+    @Test
+    fun `skipping an archived chore writes nothing`() = runTest {
+        assertAnArchivedChoreIgnores { chores.skip(it) }
+    }
+
+    @Test
+    fun `editing an archived chore writes nothing`() = runTest {
+        assertAnArchivedChoreIgnores { chores.edit(it, ChoreDraft("Hoover", weekly(SUNDAY))) }
+    }
+
+    /**
+     * Archives a chore and lets three Saturdays pass with the user shown the agenda, so an
+     * active chore would now have lapses to write, then asserts [write] wrote nothing at all.
+     */
+    private suspend fun assertAnArchivedChoreIgnores(write: suspend (ChoreId) -> Unit) {
+        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
+        chores.archive(id)
+        travelTo("2026-10-08")
+        chores.markSeen()
+        val before = chores.archived().first().single()
+
+        write(id)
+
+        // The store's own history, not detail(): whether detail() shows an archived chore at
+        // all is a separate question (see TODO.md), and this one is only about writes.
+        assertTrue(store.history(id).first().isEmpty())
+        assertEquals(before, chores.archived().first().single())
+    }
+
+    @Test
     fun `deleting a chore that is not archived leaves it and its history`() = runTest {
         val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
         travelTo("2026-09-19")
@@ -300,17 +334,22 @@ class StoredChoresTest {
 
     @Test
     fun `archiving an archived chore changes nothing, not even the lapses it would catch up`() = runTest {
+        assertAnArchivedChoreIgnores { chores.archive(it) }
+    }
+
+    @Test
+    fun `archiving an active chore first writes the lapses it has accrued`() = runTest {
         val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
-        chores.archive(id)
-        val first = chores.archived().first().single().archivedAt
-        // Three Saturdays pass, and the user is shown the agenda, which advances seenThrough.
-        travelTo("2026-10-08")
+        // The 09-19 occurrence is shown to the user on 09-20, and lapses once 09-26 falls due —
+        // after the last markSeen, so nothing but the archive's own catch-up can write it.
+        travelTo("2026-09-20")
         chores.markSeen()
+        travelTo("2026-09-27")
+        assertTrue(chores.detail(id).first()!!.history.isEmpty())
 
         chores.archive(id)
 
-        assertEquals(first, chores.archived().first().single().archivedAt)
-        assertTrue(chores.detail(id).first()!!.history.isEmpty())
+        assertEquals(listOf(date("2026-09-19")), chores.detail(id).first()!!.history.map { it.dueDate })
     }
 
     private fun StoredChores(store: ChoreStore, clock: () -> Clock): Chores =
