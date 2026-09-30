@@ -3,7 +3,8 @@ package at.woergoetter.chorely.ui.agenda
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -122,11 +123,16 @@ private fun LazyListScope.dueSection(
     items(entries, key = { it.chore.id.value }) { entry ->
         ListItem(
             headlineContent = { Text(entry.chore.name) },
-            supportingContent = { Text(stringResource(R.string.due_on, dates.format(entry.dueDate))) },
-            trailingContent = {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { onSkip(entry.chore.id) }) { Text(stringResource(R.string.skip)) }
-                    TextButton(onClick = { onComplete(entry.chore.id) }) { Text(stringResource(R.string.done)) }
+            supportingContent = {
+                // Under the name rather than beside it, as on the archive: trailing content is
+                // not constrained, so at a large font scale the buttons would squeeze out the
+                // name that says which chore a Done is for.
+                Column {
+                    Text(stringResource(R.string.due_on, dates.format(entry.dueDate)))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = { onSkip(entry.chore.id) }) { Text(stringResource(R.string.skip)) }
+                        TextButton(onClick = { onComplete(entry.chore.id) }) { Text(stringResource(R.string.done)) }
+                    }
                 }
             },
             modifier = Modifier.clickable { onOpenChore(entry.chore.id) },
