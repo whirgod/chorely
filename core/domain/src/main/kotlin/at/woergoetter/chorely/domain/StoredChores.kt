@@ -33,6 +33,7 @@ class StoredChores(
             .map { it.dueChore(book.seenThrough, clock) }
             .sortedWith(byDueDateThenName)
         Agenda(
+            day = today,
             overdue = due.filter { it.dueDate < today },
             today = due.filter { it.dueDate == today },
             upcoming = due.filter { it.dueDate > today },
@@ -58,27 +59,34 @@ class StoredChores(
         book.chores.map { it.chore }.filter { it.isArchived }.sortedByDescending { it.archivedAt }
     }
 
-    override suspend fun due(): List<DueChore> {
+    override suspend fun due(): DueToday {
         val clock = pinned()
         val today = LocalDate.now(clock)
         val book = store.transact { it.book() }
-        return book.active()
+        val chores = book.active()
             .map { it.dueChore(book.seenThrough, clock) }
             .filter { it.dueDate <= today }
             .sortedWith(byDueDateThenName)
+        return DueToday(today, chores)
     }
 
-    override suspend fun markSeen(): Unit = store.transact { edit ->
+    override suspend fun markSeen(through: LocalDate): Unit = store.transact { edit ->
         val clock = pinned()
         val book = edit.book()
+        // Never backwards — a move west makes "today" earlier, and a digest's day can be older
+        // than one the overview has already marked — since the record of what the user has
+        // been shown must not un-show anything. Except past tomorrow, which wins: nothing on
+        // screen can be further ahead, and a date beyond that, left by a clock once set wrongly
+        // forward, would go on lapsing occurrences no one saw. It is brought back here, at the
+        // next markSeen, and the catch-up below already uses the corrected value.
+        val cap = LocalDate.now(clock).plusDays(1)
+        val stored = book.seenThrough?.let { minOf(it, cap) }
         book.active().forEach { record ->
-            val displaced = record.catchUp(book.seenThrough, clock).displaced
+            val displaced = record.catchUp(stored, clock).displaced
             if (displaced.isNotEmpty()) edit.append(record.chore.id, displaced)
         }
-        // Never backwards: a move to a zone further west makes "today" earlier, and the
-        // record of what the user has been shown must not un-show anything.
-        val today = LocalDate.now(clock)
-        edit.markSeen(book.seenThrough?.let { maxOf(it, today) } ?: today)
+        val shown = minOf(through, cap)
+        edit.markSeen(stored?.let { maxOf(it, shown) } ?: shown)
     }
 
     override suspend fun add(draft: ChoreDraft): ChoreId = store.transact { edit ->

@@ -7,6 +7,9 @@ import at.woergoetter.chorely.domain.ChoreId
 import at.woergoetter.chorely.domain.Chores
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -27,15 +30,26 @@ class AgendaViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /**
-     * Called once the overview has put a real [agenda] on screen — not when it was merely
-     * opened. This is the other half of the auto-skip guard: an occurrence counts as seen
-     * if the user was shown it here or by the daily digest, and only a seen occurrence may
-     * be recorded as a lapse, so a screen that showed nothing must not advance it.
+     * Marks each agenda seen, through its own day, as it reaches the screen — to be run while
+     * the overview is resumed, and cancelled when it is not. This is the other half of the
+     * auto-skip guard: an occurrence counts as seen if the user was shown it here or by the
+     * daily digest, and only a seen occurrence may be recorded as a lapse.
      *
-     * When that moment has arrived is the caller's to judge, because "the first emission is
-     * on screen" is a fact about the UI and not a rule about due dates.
+     * Every emission and not just the first: resumed on a new day after the store has been let
+     * go, the screen first shows the agenda it was left with — yesterday's, still held in
+     * [agenda] — and today's once the store answers. Marking only the first would record
+     * yesterday for a screen showing today. (Resumed sooner, the store is never asked again, and
+     * yesterday's stays on screen and is all that is marked: late, never early.) Nothing before
+     * the first emission: a seed value is not something the user was shown.
+     *
+     * The write itself goes on [viewModelScope], so leaving the screen a moment after an agenda
+     * arrived does not roll back the record that it was shown.
      */
-    fun onShown() = viewModelScope.launch { chores.markSeen() }
+    suspend fun markShownWhileResumed() {
+        agenda.filterNotNull().map { it.day }.distinctUntilChanged().collect { day ->
+            viewModelScope.launch { chores.markSeen(through = day) }
+        }
+    }
 
     fun onComplete(id: ChoreId) = viewModelScope.launch { chores.complete(id) }
 
