@@ -107,19 +107,31 @@ class StoredChores(
     }
 
     override suspend fun archive(id: ChoreId): Unit = store.transact { edit ->
+        // Archiving twice keeps the first moment, which is what the archive sorts and shows —
+        // and returns before catching up, since an archived chore's occurrences never fell due
+        // and a catch-up would write months of lapses into a history that cannot lose them.
+        if (edit.book().record(id)?.chore?.isArchived != false) return@transact
         val (record, _) = edit.caughtUp(id) ?: return@transact
         edit.update(record.chore.copy(archivedAt = clock.instant()))
     }
 
     override suspend fun restore(id: ChoreId): Unit = store.transact { edit ->
         val record = edit.book().record(id) ?: return@transact
+        // Only an archived chore: re-anchoring an active one would forgive whatever it has
+        // outstanding, and a second tap on Restore lands on a chore the first one revived.
+        if (!record.chore.isArchived) return@transact
         // Re-anchored to today: a chore archived for a year should not come back a year
         // overdue, and its history stays intact behind the new anchor.
         val anchoredOn = anchorFor(record.chore.recurrence, LocalDate.now(clock))
         edit.update(record.chore.copy(archivedAt = null, anchoredOn = anchoredOn))
     }
 
-    override suspend fun delete(id: ChoreId): Unit = store.transact { edit -> edit.delete(id) }
+    override suspend fun delete(id: ChoreId): Unit = store.transact { edit ->
+        // Only from the archive: deleting is the way out of it, and an active chore's history
+        // is not something a stray caller may discard in one call.
+        val record = edit.book().record(id) ?: return@transact
+        if (record.chore.isArchived) edit.delete(id)
+    }
 
     private suspend fun resolve(id: ChoreId, resolution: (LocalDate, java.time.Instant) -> Resolution): Unit =
         store.transact { edit ->

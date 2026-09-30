@@ -6,7 +6,7 @@ Chorely is an offline-only Android app for recurring home cleaning chores: the u
 
 Stack: Kotlin, Jetpack Compose, Navigation 3, Room, Hilt, WorkManager. Modules are `:app`, `:core:data` and `:core:domain`; see [docs/adr/0003](docs/adr/0003-three-modules-with-a-pure-domain.md) for why, and read it before adding a module or moving code between them.
 
-Every screen is built except `ArchiveScreen`, which is marked `TODO` and renders placeholder text. Everything beneath them is real; the open work and the traps in each piece of it are in [TODO.md](TODO.md).
+Every screen is built; the open work and the traps in each piece of it are in [TODO.md](TODO.md).
 
 ## Setup
 
@@ -76,7 +76,7 @@ All of these are implemented in one pure function, `catchUp` in `:core:domain`, 
 - Do not build anything listed under Rejected in [BACKLOG.md](BACKLOG.md) — streaks and completion rates especially, which look like an obvious improvement and are ruled out on purpose.
 - Android auto-backup is deliberately left **enabled** and is the one sanctioned exception to the no-cloud rule: it is the OS's own mechanism, the app never knows about it, and with no export feature it is all that survives a lost phone — do not "fix" it.
 - Do not pre-expand rows for future occurrences; store the recurrence rule plus the history of resolved ones.
-- Never delete or overwrite a resolved occurrence — the completion history is append-only, and archiving a chore must retain it.
+- Never delete or overwrite a resolved occurrence — the completion history is append-only, and archiving a chore must retain it; the one exception is the user deleting the whole chore from the archive, behind a confirmation.
 
 ## Reminder scheduling gotchas
 

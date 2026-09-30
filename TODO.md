@@ -8,20 +8,14 @@ Ideas deliberately postponed or rejected are in [BACKLOG.md](BACKLOG.md); this
 file is only the near edge of the same list. An entry leaves here when the work
 lands, not when it is planned.
 
-Everything below the UI is done: the recurrence and occurrence model, catch-up
-and auto-skip, the Room store, reminder scheduling and the digest notification.
-The two open items are the last screen and the tests around the reminder path.
+Every screen is built, and everything below them is done: the recurrence and
+occurrence model, catch-up and auto-skip, the Room store, reminder scheduling
+and the digest notification. What is open is the tests around the reminder
+path.
 
 ## Next
 
-**1. The archive list**
-[`ArchiveScreen.kt`](app/src/main/kotlin/at/woergoetter/chorely/ui/archive/ArchiveScreen.kt)
-prints names with no actions. Restore and delete are one call each on the view
-model, which makes this the smaller of the two.
-_Watch out_: delete discards the history and is not undoable, so it wants a
-confirmation; archive, which keeps it, must not.
-
-**2. A test for the reminder path**
+**1. A test for the reminder path**
 There is none.
 [`DigestScheduleTest`](app/src/test/kotlin/at/woergoetter/chorely/reminder/DigestScheduleTest.kt)
 covers `nextDigestDelay` and nothing else, and `app` has no `androidTest`
@@ -57,6 +51,8 @@ chore is created after the user abandoned it.
 `ChoreScreen` has a latch of the same shape with the same gap: Back or Archive
 then a swipe, on `[Agenda, Chore]`, lands the swipe on the agenda and leaves
 the app.
+`ArchiveScreen` has no latch at all: a Restore tapped while it slides out
+still lands, and a Delete opens a dialog that vanishes with the entry.
 _Why it is still here_: the latch would have to notice a pop it did not
 originate, which is a change to the navigation layer rather than a correction
 inside this screen. `back()` already refuses to empty the stack, so the cheapest
@@ -65,4 +61,28 @@ _Moves with it_: a test. This one is only reachable through a real transition,
 so unlike the guards in
 [`NavigationTest`](app/src/test/kotlin/at/woergoetter/chorely/NavigationTest.kt)
 it needs a Compose UI test, and therefore the `androidTest` source set and the
-CI job that item 2 above is already waiting on.
+CI job that item 1 above is already waiting on.
+
+**The archive row's buttons crowd the name at large font scales**
+[`ArchiveScreen.kt`](app/src/main/kotlin/at/woergoetter/chorely/ui/archive/ArchiveScreen.kt)
+puts Delete and Restore in `ListItem`'s `trailingContent`, which is not
+constrained, so on a narrow phone with a large font the name — the only thing
+saying which chore a Delete applies to — is squeezed to a sliver. Moving the
+actions under the headline, or into an overflow menu, fixes it.
+
+**Date formatting is copied between screens**
+`ChoreScreen` and `ArchiveScreen` each build the locale-keyed MEDIUM formatter
+and each convert an `Instant` to a local date with
+`atZone(ZoneId.systemDefault())` (not `LocalDate.ofInstant`, which is API 34+).
+A third copy is the moment to lift both into a shared helper in `ui`.
+
+**Writes to an archived chore still catch it up**
+`complete`, `skip` and `edit` in
+[`StoredChores.kt`](core/domain/src/main/kotlin/at/woergoetter/chorely/domain/StoredChores.kt)
+run `caughtUp` without asking whether the chore is archived, so they write the
+lapses of months it spent in the archive into a history that cannot lose them —
+the thing `archive`, `restore` and `delete` now refuse. Nothing in the app
+reaches them for an archived chore, since no screen opens one; a second stacked
+`MainActivity` holding a stale chore screen can.
+_Moves with it_: a `StoredChoresTest` case per write, and one gate in
+`caughtUp` is likely simpler than three.

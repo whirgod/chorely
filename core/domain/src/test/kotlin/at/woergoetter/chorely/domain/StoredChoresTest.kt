@@ -265,15 +265,52 @@ class StoredChoresTest {
     }
 
     @Test
+    fun `restoring a chore that is not archived leaves it as overdue as it was`() = runTest {
+        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
+        travelTo("2026-09-22")
+
+        chores.restore(id)
+
+        assertEquals(date("2026-09-19"), chores.detail(id).first()!!.outstanding.dueDate)
+    }
+
+    @Test
     fun `deleting discards the chore and its history`() = runTest {
+        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
+        travelTo("2026-09-19")
+        chores.complete(id)
+        chores.archive(id)
+
+        chores.delete(id)
+
+        assertNull(chores.detail(id).first())
+        assertTrue(chores.archived().first().isEmpty())
+    }
+
+    @Test
+    fun `deleting a chore that is not archived leaves it and its history`() = runTest {
         val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
         travelTo("2026-09-19")
         chores.complete(id)
 
         chores.delete(id)
 
-        assertNull(chores.detail(id).first())
-        assertTrue(chores.agenda().first().isEmpty)
+        assertEquals(1, chores.detail(id).first()!!.history.size)
+    }
+
+    @Test
+    fun `archiving an archived chore changes nothing, not even the lapses it would catch up`() = runTest {
+        val id = chores.add(ChoreDraft("Vacuum", weekly(SATURDAY)))
+        chores.archive(id)
+        val first = chores.archived().first().single().archivedAt
+        // Three Saturdays pass, and the user is shown the agenda, which advances seenThrough.
+        travelTo("2026-10-08")
+        chores.markSeen()
+
+        chores.archive(id)
+
+        assertEquals(first, chores.archived().first().single().archivedAt)
+        assertTrue(chores.detail(id).first()!!.history.isEmpty())
     }
 
     private fun StoredChores(store: ChoreStore, clock: () -> Clock): Chores =
