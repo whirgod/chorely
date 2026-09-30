@@ -51,6 +51,8 @@ chore is created after the user abandoned it.
 `ChoreScreen` has a latch of the same shape with the same gap: Back or Archive
 then a swipe, on `[Agenda, Chore]`, lands the swipe on the agenda and leaves
 the app.
+`ArchiveScreen` has no latch at all: a Restore tapped while it slides out
+still lands, and a Delete opens a dialog that vanishes with the entry.
 _Why it is still here_: the latch would have to notice a pop it did not
 originate, which is a change to the navigation layer rather than a correction
 inside this screen. `back()` already refuses to empty the stack, so the cheapest
@@ -60,3 +62,16 @@ so unlike the guards in
 [`NavigationTest`](app/src/test/kotlin/at/woergoetter/chorely/NavigationTest.kt)
 it needs a Compose UI test, and therefore the `androidTest` source set and the
 CI job that item 1 above is already waiting on.
+
+**The archive row's buttons crowd the name at large font scales**
+[`ArchiveScreen.kt`](app/src/main/kotlin/at/woergoetter/chorely/ui/archive/ArchiveScreen.kt)
+puts Delete and Restore in `ListItem`'s `trailingContent`, which is not
+constrained, so on a narrow phone with a large font the name — the only thing
+saying which chore a Delete applies to — is squeezed to a sliver. Moving the
+actions under the headline, or into an overflow menu, fixes it.
+
+**Date formatting is copied between screens**
+`ChoreScreen` and `ArchiveScreen` each build the locale-keyed MEDIUM formatter
+and each convert an `Instant` to a local date with
+`atZone(ZoneId.systemDefault())` (not `LocalDate.ofInstant`, which is API 34+).
+A third copy is the moment to lift both into a shared helper in `ui`.

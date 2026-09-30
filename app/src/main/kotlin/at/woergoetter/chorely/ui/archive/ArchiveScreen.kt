@@ -35,7 +35,7 @@ import java.util.Locale
  * Archived chores, each with the two ways out of the archive.
  *
  * Restore is one tap and Delete asks first: delete discards the history and cannot be undone,
- * while restore — like archive, on the chore screen — loses nothing.
+ * while restore — like archive, on the chore screen — loses no history.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,10 +53,11 @@ fun ArchiveScreen(
     // Chores whose Restore or Delete has been tapped and not yet landed. The row stays composed
     // until the store emits without it, and a second Delete in that window is a second write
     // at best; a second Restore is refused by the store, but the button should not offer it.
-    var spent by remember { mutableStateOf(emptySet<ChoreId>()) }
+    // Saved, like the dialog, so a rotation inside that window does not re-enable the row.
+    var spent by rememberSaveable { mutableStateOf(emptyList<Long>()) }
     fun spend(id: ChoreId, write: (ChoreId) -> Unit) {
-        if (id in spent) return
-        spent = spent + id
+        if (id.value in spent) return
+        spent = spent + id.value
         write(id)
     }
 
@@ -113,7 +114,7 @@ fun ArchiveScreen(
 @Composable
 private fun ArchiveList(
     chores: List<Chore>,
-    spent: Set<ChoreId>,
+    spent: List<Long>,
     onRestore: (ChoreId) -> Unit,
     onDelete: (ChoreId) -> Unit,
     modifier: Modifier = Modifier,
@@ -123,7 +124,7 @@ private fun ArchiveList(
 
     LazyColumn(modifier = modifier.fillMaxSize()) {
         items(chores, key = { it.id.value }) { chore ->
-            val enabled = chore.id !in spent
+            val enabled = chore.id.value !in spent
             ListItem(
                 headlineContent = { Text(chore.name) },
                 supportingContent = {
