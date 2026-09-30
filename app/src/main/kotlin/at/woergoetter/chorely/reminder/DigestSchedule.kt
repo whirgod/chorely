@@ -1,5 +1,6 @@
 package at.woergoetter.chorely.reminder
 
+import at.woergoetter.chorely.domain.pinned
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -15,10 +16,10 @@ import java.time.LocalTime
  * into WorkManager, which a unit test would only be able to watch itself make.
  */
 internal fun nextDigestDelay(reminderTime: LocalTime, deviceClock: Clock): Duration {
-    // One zone for the whole computation: the device's clock follows a zone change, and one
-    // landing between the reads below would put the time on one zone's date and convert it in
-    // another's.
-    val clock = deviceClock.withZone(deviceClock.zone)
+    // One zone and one instant for the whole computation: the device's clock follows a zone
+    // change, and one landing between the reads below would put the time on one zone's date
+    // and convert it in another's.
+    val clock = deviceClock.pinned()
     val now = clock.instant()
     val today = LocalDate.now(clock).atTime(reminderTime).atZone(clock.zone).toInstant()
     // Strictly after: firing "now" for a time that has just passed would post today's digest
@@ -40,7 +41,7 @@ internal fun nextDigestDelay(reminderTime: LocalTime, deviceClock: Clock): Durat
  * day's digest is still to be posted, late, and today's follows at its time.
  */
 internal fun isOwedDigest(scheduledAt: Instant, reminderTime: LocalTime, deviceClock: Clock): Boolean {
-    val clock = deviceClock.withZone(deviceClock.zone)
+    val clock = deviceClock.pinned()
     val now = clock.instant()
     if (scheduledAt.isAfter(now)) return false
     val today = LocalDate.now(clock)
