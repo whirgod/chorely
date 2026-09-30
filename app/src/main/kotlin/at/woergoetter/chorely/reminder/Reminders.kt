@@ -13,8 +13,13 @@ interface Reminders {
 
     /**
      * Brings the scheduled digest in line with the stored reminder time: schedules it,
-     * moves it, or cancels it if reminders are switched off. Idempotent, and safe to call
-     * from any of the several places that discover the schedule might be stale.
+     * moves it, or cancels it if reminders are switched off.
+     *
+     * Idempotent — two calls at one instant leave the same schedule — but not harmless:
+     * it replaces whatever is pending, so a digest that fell due this morning and has not
+     * run yet is thrown away and the next one aimed at tomorrow. Call it where the
+     * reminder time or the chain itself changed, which is where losing that run is either
+     * correct or already lost; a write elsewhere in the app changes nothing this reads.
      */
     suspend fun sync()
 }
