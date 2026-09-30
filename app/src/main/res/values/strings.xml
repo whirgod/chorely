@@ -10,6 +10,8 @@
     <string name="settings">Settings</string>
     <string name="done">Done</string>
     <string name="skip">Skip</string>
+    <string name="skip_named">Skip %1$s</string>
+    <string name="done_named">Done: %1$s</string>
 
     <string name="new_chore">New chore</string>
     <string name="edit_chore">Edit chore</string>
