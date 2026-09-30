@@ -45,6 +45,7 @@ import at.woergoetter.chorely.ui.toLocalDateHere
 @Composable
 fun ArchiveScreen(
     viewModel: ArchiveViewModel,
+    isActive: () -> Boolean,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -65,8 +66,10 @@ fun ArchiveScreen(
         val still = archived.orEmpty().mapTo(mutableSetOf()) { it.id }
         spent = spent intersect still
     }
+    // And not once the screen is off the top: a Restore landing while it slides out would be a
+    // write made from a screen the user has already left.
     fun spend(id: ChoreId, write: (ChoreId) -> Unit) {
-        if (id in spent) return
+        if (id in spent || !isActive()) return
         spent = spent + id
         write(id)
     }
@@ -95,7 +98,7 @@ fun ArchiveScreen(
             chores = shown,
             spent = spent,
             onRestore = { spend(it, viewModel::onRestore) },
-            onDelete = { confirmingDelete = it.value },
+            onDelete = { if (isActive()) confirmingDelete = it.value },
             modifier = Modifier.padding(padding),
         )
     }
