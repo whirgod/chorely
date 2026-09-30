@@ -53,7 +53,8 @@ android {
         targetSdk = 36
         versionCode = releaseVersionCode
         versionName = releaseVersionName
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Hilt's, so instrumented tests can swap modules; see HiltTestRunner.
+        testInstrumentationRunner = "at.woergoetter.chorely.HiltTestRunner"
     }
 
     signingConfigs {

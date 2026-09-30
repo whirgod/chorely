@@ -80,9 +80,9 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # API 26 is the app's minSdk: if the Room store works anywhere, it has to work
-      # on the oldest device the manifest admits.
-      - name: Room store tests
+      # API 26 is the app's minSdk: if the Room store and the reminder path work
+      # anywhere, they have to work on the oldest device the manifest admits.
+      - name: Room store and reminder path tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 26
@@ -90,7 +90,8 @@ jobs:
           arch: x86_64
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: ./gradlew :core:data:connectedDebugAndroidTest --stacktrace
+          # --continue, so a Room failure does not hide the reminder results behind a second boot.
+          script: ./gradlew :core:data:connectedDebugAndroidTest :app:connectedDebugAndroidTest --continue --stacktrace
 
       - name: Upload reports
         if: always()
@@ -100,5 +101,7 @@ jobs:
           path: |
             core/data/build/reports/
             core/data/build/outputs/androidTest-results/
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
           retention-days: 14
           if-no-files-found: ignore
