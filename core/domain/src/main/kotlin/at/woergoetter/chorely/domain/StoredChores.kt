@@ -16,13 +16,21 @@ import java.time.LocalDate
  */
 class StoredChores(
     private val store: ChoreStore,
-    private val clock: Clock,
+    private val deviceClock: Clock,
 ) : Chores {
 
+    /**
+     * The device's clock, read once: see [Clock.pinned]. Every operation takes one and hands it
+     * down, and nothing reads [deviceClock] directly. The agenda and detail flows take a fresh
+     * one per emission, so they still move on with time.
+     */
+    private fun pinned(): Clock = deviceClock.pinned()
+
     override fun agenda(): Flow<Agenda> = store.book().map { book ->
+        val clock = pinned()
         val today = LocalDate.now(clock)
         val due = book.active()
-            .map { it.dueChore(book.seenThrough) }
+            .map { it.dueChore(book.seenThrough, clock) }
             .sortedWith(byDueDateThenName)
         Agenda(
             overdue = due.filter { it.dueDate < today },
@@ -34,13 +42,14 @@ class StoredChores(
     override fun detail(id: ChoreId): Flow<ChoreDetail?> =
         combine(store.book(), store.history(id)) { book, history ->
             val record = book.record(id) ?: return@combine null
+            val clock = pinned()
             // Derived from the history's head rather than the book's newest resolution, which
             // is the same row: the two are separate flows, and a write re-emits them one at a
             // time, so the book's copy can lag the history it is shown next to.
             val current = record.copy(lastResolution = history.firstOrNull())
             ChoreDetail(
                 chore = current.chore,
-                outstanding = current.outstanding(book.seenThrough),
+                outstanding = current.outstanding(book.seenThrough, clock),
                 history = history,
             )
         }
@@ -50,18 +59,20 @@ class StoredChores(
     }
 
     override suspend fun due(): List<DueChore> {
+        val clock = pinned()
         val today = LocalDate.now(clock)
         val book = store.transact { it.book() }
         return book.active()
-            .map { it.dueChore(book.seenThrough) }
+            .map { it.dueChore(book.seenThrough, clock) }
             .filter { it.dueDate <= today }
             .sortedWith(byDueDateThenName)
     }
 
     override suspend fun markSeen(): Unit = store.transact { edit ->
+        val clock = pinned()
         val book = edit.book()
         book.active().forEach { record ->
-            val displaced = record.catchUp(book.seenThrough).displaced
+            val displaced = record.catchUp(book.seenThrough, clock).displaced
             if (displaced.isNotEmpty()) edit.append(record.chore.id, displaced)
         }
         // Never backwards: a move to a zone further west makes "today" earlier, and the
@@ -71,12 +82,13 @@ class StoredChores(
     }
 
     override suspend fun add(draft: ChoreDraft): ChoreId = store.transact { edit ->
-        edit.insert(draft, anchoredOn = anchorFor(draft.recurrence, LocalDate.now(clock)))
+        edit.insert(draft, anchoredOn = anchorFor(draft.recurrence, LocalDate.now(pinned())))
     }
 
     override suspend fun edit(id: ChoreId, draft: ChoreDraft): Unit = store.transact { edit ->
-        val (record, seenThrough) = edit.activeCaughtUp(id) ?: return@transact
-        val previous = record.outstanding(seenThrough)
+        val clock = pinned()
+        val (record, seenThrough) = edit.activeCaughtUp(id, clock) ?: return@transact
+        val previous = record.outstanding(seenThrough, clock)
         // The new rule taken up where the old one started, so that `recomputed` is what the
         // rule gives on its own rather than what the old anchor happened to allow.
         val edited = record.chore.copy(
@@ -112,7 +124,8 @@ class StoredChores(
     override suspend fun archive(id: ChoreId): Unit = store.transact { edit ->
         // Archiving twice keeps the first moment, which is what the archive sorts and shows:
         // activeCaughtUp refuses an archived chore.
-        val (record, _) = edit.activeCaughtUp(id) ?: return@transact
+        val clock = pinned()
+        val (record, _) = edit.activeCaughtUp(id, clock) ?: return@transact
         edit.update(record.chore.copy(archivedAt = clock.instant()))
     }
 
@@ -123,7 +136,7 @@ class StoredChores(
         if (!record.chore.isArchived) return@transact
         // Re-anchored to today: a chore archived for a year should not come back a year
         // overdue, and its history stays intact behind the new anchor.
-        val anchoredOn = anchorFor(record.chore.recurrence, LocalDate.now(clock))
+        val anchoredOn = anchorFor(record.chore.recurrence, LocalDate.now(pinned()))
         edit.update(record.chore.copy(archivedAt = null, anchoredOn = anchoredOn))
     }
 
@@ -136,8 +149,9 @@ class StoredChores(
 
     private suspend fun resolve(id: ChoreId, resolution: (LocalDate, java.time.Instant) -> Resolution): Unit =
         store.transact { edit ->
-            val (record, seenThrough) = edit.activeCaughtUp(id) ?: return@transact
-            val due = record.outstanding(seenThrough).dueDate
+            val clock = pinned()
+            val (record, seenThrough) = edit.activeCaughtUp(id, clock) ?: return@transact
+            val due = record.outstanding(seenThrough, clock).dueDate
             edit.append(id, listOf(resolution(due, clock.instant())))
         }
 
@@ -148,10 +162,10 @@ class StoredChores(
      * occurrences stopped falling due when it was archived, and catching it up would write
      * months of lapses into a history that cannot lose them.
      */
-    private suspend fun ChoreEdit.activeCaughtUp(id: ChoreId): Pair<ChoreRecord, LocalDate?>? {
+    private suspend fun ChoreEdit.activeCaughtUp(id: ChoreId, clock: Clock): Pair<ChoreRecord, LocalDate?>? {
         val book = book()
         val record = book.record(id)?.takeUnless { it.chore.isArchived } ?: return null
-        val displaced = record.catchUp(book.seenThrough).displaced
+        val displaced = record.catchUp(book.seenThrough, clock).displaced
         if (displaced.isEmpty()) return record to book.seenThrough
         append(id, displaced)
         val refreshed = book()
@@ -162,12 +176,14 @@ class StoredChores(
 
     private fun ChoreBook.active() = chores.filterNot { it.chore.isArchived }
 
-    private fun ChoreRecord.catchUp(seenThrough: LocalDate?) =
+    private fun ChoreRecord.catchUp(seenThrough: LocalDate?, clock: Clock) =
         catchUp(chore, lastResolution, seenThrough, clock)
 
-    private fun ChoreRecord.outstanding(seenThrough: LocalDate?) = catchUp(seenThrough).outstanding
+    private fun ChoreRecord.outstanding(seenThrough: LocalDate?, clock: Clock) =
+        catchUp(seenThrough, clock).outstanding
 
-    private fun ChoreRecord.dueChore(seenThrough: LocalDate?) = DueChore(chore, outstanding(seenThrough))
+    private fun ChoreRecord.dueChore(seenThrough: LocalDate?, clock: Clock) =
+        DueChore(chore, outstanding(seenThrough, clock))
 
     private companion object {
         val byDueDateThenName = compareBy<DueChore>({ it.dueDate }, { it.chore.name.lowercase() })

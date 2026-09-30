@@ -41,10 +41,13 @@ to say whether it wrote, which `Chores` returns as `Unit` today; `detail()`
 could also emit null for an archived chore, so screens stop filtering it
 themselves, once the chore screen no longer relies on seeing it archive.
 
-**One operation can read two zones**
-[`StoredChores`](core/domain/src/main/kotlin/at/woergoetter/chorely/domain/StoredChores.kt)
-reads its clock's zone several times per call, and the clock now follows a
-zone change, so one landing mid-call can bucket the agenda by one day and catch
-up by another. Milliseconds wide; `nextDigestDelay` already pins the zone once.
-_Moves with it_: `clock.withZone(clock.zone)` at the top of each operation,
-passed down into the `ChoreRecord` helpers that read the member today.
+**The digest can mark a day seen that it did not show**
+[`DailyDigestWorker`](app/src/main/kotlin/at/woergoetter/chorely/reminder/DailyDigestWorker.kt)
+calls `due()` and then `markSeen()`, two operations that each read the clock,
+so a midnight or an eastward zone change between them records the next day as
+seen while the notification showed only this one — the lapse ADR 0002 exists
+to prevent. Reached by a midnight passing between the two calls, which include
+the post, or by an eastward zone change that crosses one: for a 20:00 reminder
+in Vienna, a move to Tokyo in that window is enough.
+_Moves with it_: `markSeen` taking the day that was shown, which `due()` would
+have to return; both are on the `Chores` interface.
