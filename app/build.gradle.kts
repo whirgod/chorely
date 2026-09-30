@@ -158,3 +158,11 @@ dependencies {
   implementation(libs.androidx.lifecycle.viewmodel.navigation3)
 }
 
+// Lint reads the sources KSP and Hilt generate — the androidTest ones included — without
+// declaring them as inputs, so nothing stops it analyzing while one of those tasks is still
+// rewriting them, and it then crashes on a file that vanished mid-read ("Unexpected failure
+// during lint analysis ... No such file or directory"). Ordering alone is enough: lint depends
+// on neither, it only must not overlap them.
+tasks.matching { it.name.startsWith("lintAnalyze") || it.name.startsWith("lintVitalAnalyze") }.configureEach {
+  mustRunAfter(tasks.matching { it.name.startsWith("ksp") || it.name.startsWith("hiltJavaCompile") })
+}
