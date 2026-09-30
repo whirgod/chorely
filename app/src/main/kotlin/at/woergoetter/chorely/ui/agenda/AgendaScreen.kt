@@ -33,6 +33,8 @@ import androidx.lifecycle.repeatOnLifecycle
 import at.woergoetter.chorely.R
 import at.woergoetter.chorely.domain.ChoreId
 import at.woergoetter.chorely.domain.DueChore
+import at.woergoetter.chorely.ui.rememberDateFormatter
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,11 +89,12 @@ fun AgendaScreen(
             }
         },
     ) { padding ->
+        val dates = rememberDateFormatter()
         LazyColumn(modifier = Modifier.padding(padding)) {
             val shown = agenda ?: return@LazyColumn
-            dueSection(R.string.overdue, shown.overdue, onOpenChore, viewModel::onComplete, viewModel::onSkip)
-            dueSection(R.string.due_today, shown.today, onOpenChore, viewModel::onComplete, viewModel::onSkip)
-            dueSection(R.string.coming_up, shown.upcoming, onOpenChore, viewModel::onComplete, viewModel::onSkip)
+            dueSection(R.string.overdue, shown.overdue, dates, onOpenChore, viewModel::onComplete, viewModel::onSkip)
+            dueSection(R.string.due_today, shown.today, dates, onOpenChore, viewModel::onComplete, viewModel::onSkip)
+            dueSection(R.string.coming_up, shown.upcoming, dates, onOpenChore, viewModel::onComplete, viewModel::onSkip)
         }
     }
 }
@@ -103,6 +106,7 @@ fun AgendaScreen(
 private fun LazyListScope.dueSection(
     @StringRes title: Int,
     entries: List<DueChore>,
+    dates: DateTimeFormatter,
     onOpenChore: (ChoreId) -> Unit,
     onComplete: (ChoreId) -> Unit,
     onSkip: (ChoreId) -> Unit,
@@ -118,7 +122,7 @@ private fun LazyListScope.dueSection(
     items(entries, key = { it.chore.id.value }) { entry ->
         ListItem(
             headlineContent = { Text(entry.chore.name) },
-            supportingContent = { Text(entry.dueDate.toString()) },
+            supportingContent = { Text(stringResource(R.string.due_on, dates.format(entry.dueDate))) },
             trailingContent = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = { onSkip(entry.chore.id) }) { Text(stringResource(R.string.skip)) }

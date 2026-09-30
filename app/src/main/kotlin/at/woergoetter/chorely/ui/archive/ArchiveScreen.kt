@@ -30,10 +30,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import at.woergoetter.chorely.R
 import at.woergoetter.chorely.domain.Chore
 import at.woergoetter.chorely.domain.ChoreId
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
-import java.util.Locale
+import at.woergoetter.chorely.ui.rememberDateFormatter
+import at.woergoetter.chorely.ui.toLocalDateHere
 
 /**
  * Archived chores, each with the two ways out of the archive.
@@ -129,8 +127,7 @@ private fun ArchiveList(
     onDelete: (ChoreId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val locale = Locale.getDefault()
-    val dates = remember(locale) { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale) }
+    val dates = rememberDateFormatter()
 
     LazyColumn(modifier = modifier.fillMaxSize()) {
         items(chores, key = { it.id.value }) { chore ->
@@ -138,11 +135,8 @@ private fun ArchiveList(
             ListItem(
                 headlineContent = { Text(chore.name) },
                 supportingContent = {
-                    // Read in the zone the device is in now, like every other date in the app.
-                    // Not `LocalDate.ofInstant`, which Android has only from API 34.
                     chore.archivedAt?.let {
-                        val on = it.atZone(ZoneId.systemDefault()).toLocalDate()
-                        Text(stringResource(R.string.archived_on, dates.format(on)))
+                        Text(stringResource(R.string.archived_on, dates.format(it.toLocalDateHere())))
                     }
                 },
                 trailingContent = {
