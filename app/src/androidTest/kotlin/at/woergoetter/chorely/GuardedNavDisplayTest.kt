@@ -242,6 +242,7 @@ class GuardedNavDisplayTest {
         show(A, B)
 
         midTransition { click("B back") }
+        rule.onNodeWithText("screen B", useUnmergedTree = true).assertExists() // still leaving
         click("A open B")
         settle()
 

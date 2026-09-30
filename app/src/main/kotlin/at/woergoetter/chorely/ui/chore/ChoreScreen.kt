@@ -67,10 +67,14 @@ fun ChoreScreen(
     var leaving by remember { mutableStateOf(false) }
     // [isActive] closes the gap the latch cannot see: a system back that took this screen off
     // the top without passing through here.
+    // And a way out the navigator refused — an Edit while the editor is still sliding off from
+    // last time — leaves this screen on top, so the latch opens again rather than holding every
+    // button off with nowhere gone.
     fun leave(onWayOut: () -> Unit) {
         if (leaving || !isActive()) return
         leaving = true
         onWayOut()
+        if (isActive()) leaving = false
     }
 
     // Edit is a way out that comes back. Usually this entry leaves composition behind the

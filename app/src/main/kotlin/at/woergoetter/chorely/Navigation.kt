@@ -12,6 +12,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -52,8 +54,8 @@ internal fun MutableList<NavKey>.back() {
  * tap on the button that opened it pushes an equal NavKey again. Nav3 keys an entry's saved
  * state and its ViewModelStore by the key, so two equal keys are one slot shared by two
  * entries — and popping one of them leaves the other on screen holding a spent one-shot latch,
- * with both its buttons disabled. Equal keys adjacent on the stack are never wanted, so
- * refusing the push is the whole fix.
+ * with both its buttons disabled. Equal keys adjacent on the stack are never wanted, so this
+ * refuses them; [Navigator.go] refuses the other way to the same slot, a key still leaving.
  */
 internal fun MutableList<NavKey>.go(key: NavKey) {
     if (lastOrNull() != key) add(key)
@@ -65,12 +67,14 @@ internal fun MutableList<NavKey>.go(key: NavKey) {
  *
  * A screen stays composed and tappable for the length of its exit transition, and the system
  * back gesture reaches NavDisplay throughout. Screens latch their own buttons, but a latch
- * can only refuse what its screen originates, so two things are refused here instead:
+ * can only refuse what its screen originates, so three things are refused here instead:
  *
  * - A screen's navigation, from anywhere but the top: a tap that lands on a screen already
  *   on its way out must not pop or push on behalf of the screen that replaced it.
  * - A system back before the top has settled: Cancel then a swipe would otherwise cost two
  *   screens, and on `[Agenda, Chore]` Back then a swipe would leave the app.
+ * - A push of a key whose last composition is still animating out, which would get that
+ *   composition back rather than a fresh one.
  *
  * A screen popping itself before it has settled stays allowed — the editor finding its chore
  * gone while it is still sliding in has to be able to leave.
@@ -125,12 +129,12 @@ class Navigator(private val stack: MutableList<NavKey>) {
      * equal key back the composition still sliding out, latches closed and form filled in, so
      * a push of one is refused until it has gone.
      */
-    private val composed = mutableStateMapOf<NavKey, Int>()
+    // Plain, not snapshot state: only click handlers read it, never a composition.
+    private val composed = HashMap<NavKey, Int>()
 
     /** [from] opening [to]; refused unless [from] is on top, and while [to] is still leaving. */
     fun go(from: NavKey, to: NavKey) {
-        if (!isActive(from)) return
-        if (to !in stack && (composed[to] ?: 0) > 0) return
+        if (!isActive(from) || (composed[to] ?: 0) > 0) return
         changeTop { stack.go(to) }
     }
 
@@ -223,7 +227,7 @@ fun ChorelyNavigation() {
  * top takes no input, and a back that NavDisplay would not intercept — on a one-entry stack,
  * where the activity would finish — is swallowed until the top has settled.
  *
- * "No input" is touches, focus and accessibility actions alike, so it covers every screen,
+ * "No input" is touches, keys, focus and accessibility actions alike, so it covers every screen,
  * including any added later, and a keyboard Enter or a TalkBack double-tap as much as a
  * finger. The editor, chore and archive screens gate on [Navigator.isActive] as well, since
  * their writes cannot be taken back. [blockOffTop] exists for the test that proves the block
@@ -268,8 +272,11 @@ fun GuardedNavDisplay(
                         }
                         // Focus is refused below, but a scrolling list is a focus target of its
                         // own and lets its children be focused regardless; a key event reaching
-                        // one is stopped here on its way down instead.
-                        .onPreviewKeyEvent { blockOffTop && !navigator.isActive(key) }
+                        // one is stopped here on its way down instead. Back and volume pass: a
+                        // back pressed across the end of the transition must still count.
+                        .onPreviewKeyEvent {
+                            blockOffTop && !navigator.isActive(key) && it.key !in PassThroughKeys
+                        }
                         .then(if (inert) Inert else Modifier),
                 ) { entry.Content() }
             }
@@ -302,6 +309,9 @@ fun GuardedNavDisplay(
 private fun SwallowEarlyBack(navigator: Navigator) {
     BackHandler(enabled = !navigator.isSettled) {}
 }
+
+/** Keys a departing entry lets through, since none of them acts on the entry itself. */
+private val PassThroughKeys = setOf(Key.Back, Key.VolumeUp, Key.VolumeDown, Key.VolumeMute)
 
 /** No focus and no semantics, so neither a keyboard nor an accessibility service can act. */
 private val Inert = Modifier
