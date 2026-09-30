@@ -41,13 +41,6 @@ it needs a Compose UI test, in the app's `androidTest` source set, which CI
 already runs on API 26 — where `reminder/Fakes.kt` replaces the data module for
 every test, and its `FakeChores` throws on the reads a UI needs.
 
-**The archive row's buttons crowd the name at large font scales**
-[`ArchiveScreen.kt`](app/src/main/kotlin/at/woergoetter/chorely/ui/archive/ArchiveScreen.kt)
-puts Delete and Restore in `ListItem`'s `trailingContent`, which is not
-constrained, so on a narrow phone with a large font the name — the only thing
-saying which chore a Delete applies to — is squeezed to a sliver. Moving the
-actions under the headline, or into an overflow menu, fixes it.
-
 **Three edges of the digest's retry**
 [`DailyDigestWorker`](app/src/main/kotlin/at/woergoetter/chorely/reminder/DailyDigestWorker.kt)
 retries a failed run as a whole, up to five times, five minutes apart.

@@ -1,6 +1,8 @@
 package at.woergoetter.chorely.ui.archive
 
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -135,27 +137,33 @@ private fun ArchiveList(
             ListItem(
                 headlineContent = { Text(chore.name) },
                 supportingContent = {
-                    chore.archivedAt?.let {
-                        Text(stringResource(R.string.archived_on, dates.format(it.toLocalDateHere())))
-                    }
-                },
-                trailingContent = {
-                    // Named per row, so a screen reader says which chore a Delete is for
-                    // rather than reading the same two buttons down the list. The visible word
-                    // is cleared, as on the agenda's add button, so it is not read twice.
-                    val deleteLabel = stringResource(R.string.delete_named, chore.name)
-                    val restoreLabel = stringResource(R.string.restore_named, chore.name)
-                    Row {
-                        TextButton(
-                            onClick = { onDelete(chore.id) },
-                            enabled = enabled,
-                            modifier = Modifier.semantics { contentDescription = deleteLabel },
-                        ) { Text(stringResource(R.string.delete), modifier = Modifier.clearAndSetSemantics {}) }
-                        TextButton(
-                            onClick = { onRestore(chore.id) },
-                            enabled = enabled,
-                            modifier = Modifier.semantics { contentDescription = restoreLabel },
-                        ) { Text(stringResource(R.string.restore), modifier = Modifier.clearAndSetSemantics {}) }
+                    // The actions sit under the name rather than beside it: trailing content
+                    // is not constrained, so at a large font scale two buttons beside the
+                    // name squeeze it to a sliver — and the name is the only thing saying
+                    // which chore a Delete is for.
+                    Column {
+                        chore.archivedAt?.let {
+                            Text(stringResource(R.string.archived_on, dates.format(it.toLocalDateHere())))
+                        }
+                        // Named per row, so a screen reader says which chore a Delete is for
+                        // rather than reading the same two buttons down the list. The visible
+                        // word is cleared, as on the agenda's add button, so it is not read twice.
+                        val deleteLabel = stringResource(R.string.delete_named, chore.name)
+                        val restoreLabel = stringResource(R.string.restore_named, chore.name)
+                        // Flow, so that at the largest scales the second button wraps rather than
+                        // clipping.
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(
+                                onClick = { onRestore(chore.id) },
+                                enabled = enabled,
+                                modifier = Modifier.semantics { contentDescription = restoreLabel },
+                            ) { Text(stringResource(R.string.restore), modifier = Modifier.clearAndSetSemantics {}) }
+                            TextButton(
+                                onClick = { onDelete(chore.id) },
+                                enabled = enabled,
+                                modifier = Modifier.semantics { contentDescription = deleteLabel },
+                            ) { Text(stringResource(R.string.delete), modifier = Modifier.clearAndSetSemantics {}) }
+                        }
                     }
                 },
             )
