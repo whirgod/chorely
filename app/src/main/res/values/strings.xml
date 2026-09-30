@@ -15,6 +15,8 @@
     <string name="edit_chore">Edit chore</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
+    <string name="back">Back</string>
+    <string name="ok">OK</string>
     <string name="chore_name">Chore name</string>
     <string name="on_days">On days</string>
     <string name="every">Every</string>
@@ -24,6 +26,12 @@
     <string name="unit_days">Days</string>
     <string name="unit_weeks">Weeks</string>
     <string name="unit_months">Months</string>
+
+    <string name="daily_reminder">Daily reminder</string>
+    <string name="reminder_off">Off</string>
+    <string name="reminder_at">Every day at %1$s</string>
+    <string name="notifications_blocked">Notifications are blocked for Chorely, so the daily reminder cannot appear.</string>
+    <string name="open_notification_settings">Open notification settings</string>
 
     <string name="digest_channel">Daily reminder</string>
     <string name="digest_channel_description">One notification a day listing the chores that are due. Silent on days with nothing due.</string>

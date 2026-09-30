@@ -98,7 +98,7 @@ The reminder path is where sessions get lost. Facts that are not visible from an
 - Due dates are whole local calendar days in the device's *current* timezone, with no correction for travel: store instants, derive local dates on read.
 - `minSdk` is 26 so `java.time` needs no core library desugaring — lowering it means adding desugaring to both Android modules, not just changing the number.
 - `:core:domain` must stay a plain Kotlin JVM module: if something there needs Android, it needs a port instead.
-- A write the user has been told is done must outlive its screen and goes on the injected `@ApplicationScope` `CoroutineScope` (only `ChoreEditorViewModel.onSave` so far); work that merely feeds a screen stays on `viewModelScope`, which a pop cancels.
+- A write the user has been told is done must outlive its screen and goes on the injected `@ApplicationScope` `CoroutineScope` (`ChoreEditorViewModel.onSave` and `SettingsViewModel.onReminderTimeChanged`); work that merely feeds a screen stays on `viewModelScope`, which a pop cancels.
 
 ## Commits and pull requests
 
