@@ -107,14 +107,23 @@ jobs:
         run: ./gradlew :app:assembleRelease -Pchorely.versionName="$VERSION" --stacktrace
 
       # If the signing config was not picked up, AGP quietly emits app-release-unsigned.apk
-      # instead of failing. Assert on the artifact rather than trusting the build.
-      - name: Verify the APK is signed
+      # instead of failing. Assert on the artifact rather than trusting the build. A
+      # different key in the secrets would sign an APK no installed copy accepts as an
+      # update, so the signer is pinned too; see docs/releasing.md before changing it.
+      - name: Verify the APK is signed with the upload key
         id: apk
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          EXPECTED_CERT_SHA256: 152e36b5a8a8629d06655a4043e40bf7b50a39014c245a3350a2bb81616641ac
         run: |
           apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
-          "$apksigner" verify --print-certs app/build/outputs/apk/release/app-release.apk
+          certs=$("$apksigner" verify --print-certs app/build/outputs/apk/release/app-release.apk)
+          echo "$certs"
+          digests=$(grep -oP 'certificate SHA-256 digest: \K[0-9a-f]{64}' <<< "$certs" | sort -u)
+          if [[ "$digests" != "$EXPECTED_CERT_SHA256" ]]; then
+            echo "::error::APK is signed by ${digests:-nothing}, not the upload key $EXPECTED_CERT_SHA256; check the RELEASE_* secrets against docs/releasing.md"
+            exit 1
+          fi
           apk="$RUNNER_TEMP/chorely-$VERSION.apk"
           mv app/build/outputs/apk/release/app-release.apk "$apk"
           echo "path=$apk" >> "$GITHUB_OUTPUT"

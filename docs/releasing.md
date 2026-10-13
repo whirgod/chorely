@@ -27,7 +27,7 @@ keytool -genkeypair -keystore release.jks -storetype PKCS12 \
   -dname "CN=Chorely, O=Woergoetter, C=AT"
 ```
 
-`keytool` prompts for the password. Afterwards, update the fingerprint in the table above.
+`keytool` prompts for the password. Afterwards, update the fingerprint in the table above, and `EXPECTED_CERT_SHA256` in `release.yml` (lowercase, no colons). The workflow refuses to publish an APK signed by any other key.
 
 ## Verifying a keystore before using it
 
