@@ -10,6 +10,7 @@ on:
 #   RELEASE_KEYSTORE_PASSWORD  its store password
 #   RELEASE_KEY_ALIAS          the signing key's alias inside that keystore
 #   RELEASE_KEY_PASSWORD       that key's password
+# docs/releasing.md covers generating the keystore, verifying it, and setting these.
 
 # A tag is a unique ref, so this only catches the same tag being pushed twice. It must
 # not cancel: a half-published release is worse than a duplicate run that fails.
